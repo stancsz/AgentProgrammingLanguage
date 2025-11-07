@@ -1,11 +1,12 @@
 # Agent Programming Language (APL) - README
 
-APL is an open agent-focused programming language that targets the Python ecosystem. The project aims to design, specify, and ship a production-ready language stack—grammar, type system, compiler, runtime, tooling—that lets teams express autonomous agent behavior as audited, testable code. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts.
+APL is an open agent-focused programming language that targets the Python ecosystem. The project aims to design, specify, and ship a production-ready language stack—grammar, type system, compiler, runtime, tooling—that lets teams express autonomous agent behavior as audited, testable code and deploy it consistently across laptops, containers, and cloud platforms. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts.
 
 ## Goals
 - Define a Python-aligned agent programming language with formal grammar, static capability typing, and deterministic semantics.
 - Deliver a reference compiler pipeline (parser, type checker, Python code generator) and runtime that make APL programs executable, observable, and safe by default.
 - Supply tooling—CLI, tests, CI workflows, documentation—that enables teams to author, validate, package, and ship production-grade agent code.
+- Make agent deployment straightforward: build once in APL and publish agents to local runtimes, containerized edge workloads, or managed clouds (AWS Lambda/ECS, GCP Cloud Run, Azure Container Apps) without rewriting business logic.
 
 ## Language foundations
 - **Python-aligned surface syntax**: APL adopts Python indentation, expressions, and type annotations so existing Python knowledge transfers. Every agent file is valid UTF-8, uses Python lexical rules, and can embed Python statements in `python:` blocks when needed.
@@ -69,7 +70,7 @@ agent reflexive_solver:
     return result
 ```
 
-- **Integration optionality**: APL emits an execution IR that can plug into LangGraph or any other orchestrator - LangGraph is a supported target, not a hard dependency - so teams can adopt existing runtimes while keeping agent intent in portable source code. Example:
+- **Integration optionality**: APL emits an execution IR that can plug into LangGraph or any other orchestrator - LangGraph is a supported target, not a hard dependency - so teams can adopt existing runtimes while keeping agent intent in portable source code. Packaging tools turn that source into wheels or containers ready for local hosts or managed clouds. Example:
 
 ```apl
 agent export_example:
@@ -86,6 +87,7 @@ agent export_example:
 - Emit both a portable IR (JSON) and a Python module (`.py` or bytecode) that shares the same semantics.
 - Execute via the reference Python runtime (`apl.runtime`), which enforces capability gates, logs traces, and provides deterministic mock adapters for testing.
 - Optional: export IR to LangGraph, CrewAI, or custom orchestrators without losing the source-of-truth agent code.
+- Package compiled agents into deployable artifacts (wheels, OCI images, serverless bundles) along with capability manifests so they can run locally or on cloud platforms that satisfy the declared runtime contracts.
 
 ## Repository layout (recommended)
 - apl-spec/             - language spec & grammar (Markdown)
@@ -115,33 +117,31 @@ python -m venv .venv
 pip install lark-parser pytest black ruff
 ```
 
-## Minimal first files to add
-- apl-spec/grammar.md - language grammar + example programs
-- packages/python/src/apl/parser.py - tokenizer + minimal parser
-- packages/python/src/apl/ast.py - AST node types + IR serializer
-- packages/python/src/apl/runtime.py - mock runtime and capability checks
-- packages/python/src/apl/cli.py - minimal CLI (validate, run --mock)
-- examples/hello.apl - tiny program to parse + run under mock mode
-
 ## Development workflow (recommended)
 1. Write parsing tests first (pytest) describing expected AST for small APL snippets.
-2. Implement parser until tests pass.
-3. Implement AST -> IR serializer tests, then runtime mocks.
-4. Add CLI and example programs; add golden tests.
-5. Run static type/capability checks (mypy plugin + apl check); configure CI for lint + tests.
+2. Implement parser and lexer until tests pass.
+3. Add type/effect checker coverage, ensuring capability misuse is rejected statically.
+4. Generate Python modules and IR artifacts; validate round-trips with golden files.
+5. Run static type/capability checks (`apl check`, mypy plugin) and configure CI gates.
+6. Package deployable artifacts (wheels, containers, serverless bundles) and smoke-test them locally.
 
-Quick CLI (development)
-- Validate parsed AST:
-  python packages\python\src\apl\__init__.py validate examples\hello.apl
-- Translate to LangGraph-like JSON (or adapt the IR for other orchestrators):
-  python packages\python\src\apl\__init__.py translate examples\hello.apl
-- Run in mock mode:
-  python packages\python\src\apl\__init__.py run examples\hello.apl
+## Quick CLI (development)
+- Validate parsed AST:\
+  `python packages\python\src\apl\__init__.py validate examples\hello.apl`
+- Run static checks:\
+  `python packages\python\src\apl\__init__.py check examples\hello.apl`
+- Package for deployment (wheel + IR + manifest):\
+  `python packages\python\src\apl\__init__.py package examples\hello.apl --output dist/`
+- Translate to LangGraph-like JSON (or adapt the IR for other orchestrators):\
+  `python packages\python\src\apl\__init__.py translate examples\hello.apl --backend langgraph`
+- Run in mock mode:\
+  `python packages\python\src\apl\__init__.py run examples\hello.apl --mock`
 
 ## Next steps to implement
 - Finalize Python-compatible syntax and ensure parser compatibility.
-- Implement MCP/tool connectors and a capability manager in runtime.
-- Add tests and CI; replace ad-hoc eval with a safe expression evaluator.
+- Implement MCP/tool connectors, capability manager, and sandboxed runtime.
+- Build packaging/distribution tooling for containers and serverless targets.
+- Add tests, CI automation, and documentation to support production deployment.
 - Split scaffold into modules: parser.py, ast.py, runtime.py, cli.py.
 
 ## Contact / Contributing

@@ -1,7 +1,7 @@
 # Agent Programming Language (APL) - Product Requirements Document
 
 ## 1. Summary
-Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is a constrained, Python-aligned language: its lexer, indentation, and expression grammar are a strict subset of Python 3.12; agent-specific constructs (e.g., `agent`, capability annotations) extend that subset with deterministic semantics that compile to Python modules. Authors define agents as first-class functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically both to execution representations (including, but not limited to, a LangGraph-compatible IR) and to Python `ast` modules, supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and fast deployment and orchestration of agents.
+Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is a constrained, Python-aligned language: its lexer, indentation, and expression grammar are a strict subset of Python 3.12; agent-specific constructs (e.g., `agent`, capability annotations) extend that subset with deterministic semantics that compile to Python modules. Authors define agents as first-class functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically both to execution representations (including, but not limited to, a LangGraph-compatible IR) and to Python `ast` modules, supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and produces portable deployment bundles for local runtimes or managed clouds (AWS, GCP, Azure, on-prem).
 
 ## 1.2 Language definition goals
 - **Python surface compatibility**: Every valid APL program conforms to Python lexical rules and can be linted/pretty-printed with Python tooling; invalid constructs should produce Python-esque diagnostics.
@@ -16,6 +16,7 @@ Create a small, safe, and testable agent programming language for specifying, co
 - **Agentic RAG**: Retrieval intents, query refinement loops, and verification gates are encapsulated as reusable language patterns, enabling deterministic testing and golden traces for research-style agentic RAG workflows.
 - **Reasoning frameworks (ReAct, Plan-and-Solve, Reflexion)**: Control-flow primitives and metadata allow these reasoning loops to be encoded, versioned, and validated within APL, instead of being hidden in prompts or bespoke Python glue.
 - **Extensibility for future standards**: By separating declarative agent intent from execution backends, APL keeps room for new interoperability layers, marketplaces, or simulation environments while preserving a single source of truth for agent behavior.
+- **Deployment agility**: Portable code generation and packaging make it straightforward to ship the same agent to laptops, Kubernetes clusters, or serverless runtimes while honoring declared capabilities and policies.
 
 ## Expert Design Review (Programming Language Perspective)
 - **Purpose alignment**: The repository communicates APL as a full Agent Programming Language. Maintain strict naming consistency across documentation and tooling to avoid scope drift and to reinforce that the goal is a programmable, testable agent language rather than an informal notation.
@@ -60,12 +61,14 @@ Functional:
 - Test harness that runs examples deterministically (with mock LLM).
 - CLI to validate, lint, run, and test APL scripts.
 - Static type checker (Python-aligned syntax + capability/effect system) and code generator that emits human-readable Python modules (`.py`) as well as portable IR artifacts.
+- Packaging toolchain to produce deployable artifacts (wheels, OCI images, serverless bundles) with embedded capability manifests and environment requirements.
 
 Non-functional:
 - Secure defaults (no external side-effects by default).
 - Extensible: allow custom actions/primitive operations.
 - Portable: implement reference runtime in Python (primary) and Node.js (optional).
 - Simple: keep syntax minimal to reduce parsing complexity.
+- Deployable: generated artifacts must run consistently across local machines, container platforms, and major clouds (AWS, GCP, Azure) with configuration-driven capability provisioning.
 
 Safety & Governance:
 - Explicit capability model: any action that does IO or network must be allowed in runtime flags.
@@ -128,6 +131,7 @@ agent loose_example:
   - Direct interpreter (execute built-in primitives)
   - Prompt-emitting translator (convert tasks to a single structured prompt for LLM orchestration)
   - Optional adapters that emit LangGraph, CrewAI, or other orchestrator-friendly graphs (LangGraph is treated as a first-class integration target, not the sole runtime)
+  - Deployment artifact generation (wheel bundles, OCI images, serverless descriptors) with capability manifests for target environments
 
 ## 9. Architecture & Components
 - Language spec (YAML/Markdown)
@@ -139,7 +143,10 @@ agent loose_example:
 - Runtime / Executor
   - Primitive implementations (call_llm, fetch, store, compute, assert)
   - Capability manager & sandbox
-- CLI (validate, run, test)
+- Packaging & Deployment
+  - Wheel/SDist builder embedding capability manifests
+  - Container/serverless templates for AWS/GCP/Azure and on-prem schedulers
+- CLI (validate, check, package, run, test)
 - Test harness (unit + integration with mocked LLM)
 - Docs & examples
 
@@ -148,6 +155,7 @@ agent loose_example:
   - Parser libs: lark, or use ANTLR with Python target
   - Type checking: mypy plugin / pyright extension for APL, leveraging Python typing rules
   - Code generation: Python `ast` / `black` for emitting canonical module code
+  - Packaging: hatch/poetry for wheels, docker buildx for container images, serverless templates (AWS SAM, GCP Cloud Run, Azure Container Apps) for managed deployment
   - Virtual environment: poetry or pip + venv
 - Optional: TypeScript implementation for browser/Node integration
 - CI: GitHub Actions (lint, unit tests, integration with fake LLM)
@@ -207,14 +215,26 @@ v2+
 3. Implement tokenizer + minimal parser (parse variables, steps, tasks)
 4. Implement type checker skeleton (name resolution, capability declarations, Python interop stubs)
 5. Emit AST -> IR JSON + Python module
-6. Implement mock runtime with call_llm (deterministic stub) and assert
-7. Add CLI: apl validate <file>, apl check <file>, apl run --mock <file>
-8. Add 5 example programs + tests
-9. Add CI pipeline for lint + tests + static checking
-10. Write README + contribution guide
-11. Publish MVP branch + release notes
+6. Build packaging pipeline (wheel/SDist builder, OCI/Docker template, serverless manifest generator)
+7. Implement mock runtime with call_llm (deterministic stub) and assert
+8. Add CLI: apl validate <file>, apl check <file>, apl package <file>, apl run --mock <file>
+9. Add 5 example programs + tests
+10. Add CI pipeline for lint + tests + static checking
+11. Write README + contribution guide
+12. Publish MVP branch + release notes
 
-## 16. Developer Guidance & Directions (how to start)
+## 17. Integration Inventory (external building blocks)
+APL aims to interoperate with leading open-source agent tooling. Repositories cloned under `_external/` provide reference integrations and adapters across the agent stack:
+- Core frameworks & orchestration: `langchain-ai/langchain`, `openinterpreter/open-interpreter`, `microsoft/autogen`, `run-llama/llama_index`, `crewAIInc/crewAI`, `langchain-ai/langgraph`.
+- LLM abstraction & serving: `ollama/ollama`, `vllm-project/vllm`, `BerriAI/litellm`.
+- Memory & knowledge stores: `milvus-io/milvus`, `qdrant/qdrant`, `chroma-core/chroma`, `weaviate/weaviate`.
+- Tooling & action providers: `microsoft/playwright`, `modelcontextprotocol/python-sdk`.
+- Structured data & validation: `pydantic/pydantic`, `567-labs/instructor`.
+- Evaluation, tracing, observability: `confident-ai/deepeval`, `explodinggradients/ragas`, `arize-ai/phoenix`, `langchain-ai/langsmith-sdk`.
+
+SDKs and adapters should be developed so that APL capability manifests can bind to these libraries with minimal glue code, preserving the declarative nature of agent definitions.
+
+## 18. Developer Guidance & Directions (how to start)
 
 Minimal immediate steps (commands are suggestions — pick venv manager of choice):
 - Create repo and a Python package:
