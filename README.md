@@ -1,11 +1,11 @@
 # Agent Programming Language (APL) - README
 
-A minimal scaffold and quickstart for the Agent Programming Language (APL) project. This repository contains the language PRD and starter guidance to implement a reference Python runtime, parser, and test harness.
+APL is an open agent-focused programming language that targets the Python ecosystem. The project aims to design, specify, and ship a production-ready language stack—grammar, type system, compiler, runtime, tooling—that lets teams express autonomous agent behavior as audited, testable code. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts.
 
 ## Goals
-- Provide a small, testable agent programming language for specifying AI task workflows.
-- Ship an MVP reference implementation in Python with a mock LLM runtime.
-- Provide examples, tests, and CI for deterministic validation.
+- Define a Python-aligned agent programming language with formal grammar, static capability typing, and deterministic semantics.
+- Deliver a reference compiler pipeline (parser, type checker, Python code generator) and runtime that make APL programs executable, observable, and safe by default.
+- Supply tooling—CLI, tests, CI workflows, documentation—that enables teams to author, validate, package, and ship production-grade agent code.
 
 ## Language foundations
 - **Python-aligned surface syntax**: APL adopts Python indentation, expressions, and type annotations so existing Python knowledge transfers. Every agent file is valid UTF-8, uses Python lexical rules, and can embed Python statements in `python:` blocks when needed.
