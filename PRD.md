@@ -1,7 +1,21 @@
 # Agent Programming Language (APL) - Product Requirements Document
 
 ## 1. Summary
-Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is designed to be the "glue" for building agent systems: a Python-like, intentionally lightweight syntax (Python-compatible where practical) that lets authors define agents as first-class "agent" functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically to execution representations (including a LangGraph-compatible IR), supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and fast deployment and orchestration of agents.
+Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is a constrained, Python-aligned language: its lexer, indentation, and expression grammar are a strict subset of Python 3.12; agent-specific constructs (e.g., `agent`, capability annotations) extend that subset with deterministic semantics that compile to Python modules. Authors define agents as first-class functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically both to execution representations (including, but not limited to, a LangGraph-compatible IR) and to Python `ast` modules, supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and fast deployment and orchestration of agents.
+
+## 1.2 Language definition goals
+- **Python surface compatibility**: Every valid APL program conforms to Python lexical rules and can be linted/pretty-printed with Python tooling; invalid constructs should produce Python-esque diagnostics.
+- **Static capability/effect typing**: Side-effectful primitives require declared capabilities; the type checker enforces capability flow, effect subtyping, and input/output contracts.
+- **Module and package system**: Agents compile to Python packages with import/export directives, version metadata, and dependency manifests (`apl.toml`) to enable pip-style distribution.
+- **Deterministic semantics**: Evaluation order, scoping, and runtime behavior must be defined formally (operational semantics document + executable reference tests).
+- **Bidirectional interop**: APL code can call Python libraries through safe adapters; Python hosts can embed and invoke APL agents through the generated module artifacts.
+
+## 1.1 Modern Agent Ecosystem Drivers
+- **Protocol alignment (A2A, MCP, AP2)**: APL provides explicit constructs for declaring agent capabilities, contracts, and payment flows so the same source program can target agent-to-agent protocols, tool-facing model context protocols, and emerging payments rails without embedding protocol specifics in business logic.
+- **Multi-agent systems & orchestration**: Task decomposition, sub-agent composition, and coordination semantics are expressed as code, giving AI orchestration layers a deterministic contract for delegation, retries, and audit while keeping the orchestration engine (LangGraph or alternatives) pluggable.
+- **Agentic RAG**: Retrieval intents, query refinement loops, and verification gates are encapsulated as reusable language patterns, enabling deterministic testing and golden traces for research-style agentic RAG workflows.
+- **Reasoning frameworks (ReAct, Plan-and-Solve, Reflexion)**: Control-flow primitives and metadata allow these reasoning loops to be encoded, versioned, and validated within APL, instead of being hidden in prompts or bespoke Python glue.
+- **Extensibility for future standards**: By separating declarative agent intent from execution backends, APL keeps room for new interoperability layers, marketplaces, or simulation environments while preserving a single source of truth for agent behavior.
 
 ## Expert Design Review (Programming Language Perspective)
 - **Purpose alignment**: The repository communicates APL as a full Agent Programming Language. Maintain strict naming consistency across documentation and tooling to avoid scope drift and to reinforce that the goal is a programmable, testable agent language rather than an informal notation.
@@ -42,9 +56,10 @@ Create a small, safe, and testable agent programming language for specifying, co
 Functional:
 - Human-readable syntax for tasks, steps, variables, control flow, assertions.
 - Parser that emits an AST and JSON/YAML IR.
-- Translator that maps AST to LLM prompts or to an interpreter runtime.
+- Translator that maps AST to LLM prompts or to an interpreter runtime, with pluggable backends for LangGraph and other orchestration targets.
 - Test harness that runs examples deterministically (with mock LLM).
 - CLI to validate, lint, run, and test APL scripts.
+- Static type checker (Python-aligned syntax + capability/effect system) and code generator that emits human-readable Python modules (`.py`) as well as portable IR artifacts.
 
 Non-functional:
 - Secure defaults (no external side-effects by default).
@@ -103,6 +118,8 @@ agent loose_example:
 
 ## 8. Execution Model
 - Parse APL -> AST -> IR (JSON)
+- Perform static analysis: name resolution, type inference, capability/effect validation
+- Emit Python AST/module and portable IR artifacts
 - Runtime validates capabilities & preconditions
 - Two execution modes:
   - Simulated (mocked LLMs) for testing and CI
@@ -110,12 +127,15 @@ agent loose_example:
 - Translator approach:
   - Direct interpreter (execute built-in primitives)
   - Prompt-emitting translator (convert tasks to a single structured prompt for LLM orchestration)
+  - Optional adapters that emit LangGraph, CrewAI, or other orchestrator-friendly graphs (LangGraph is treated as a first-class integration target, not the sole runtime)
 
 ## 9. Architecture & Components
 - Language spec (YAML/Markdown)
 - Lexer & Parser -> AST
   - Use small handwritten parser (Python + lark or tree-sitter grammar) for MVP
+- Type checker & capability analyzer (mypy plugin or custom)
 - IR serializer (JSON)
+- Python code generator (APL AST -> Python `ast` -> `.py` module)
 - Runtime / Executor
   - Primitive implementations (call_llm, fetch, store, compute, assert)
   - Capability manager & sandbox
@@ -126,10 +146,12 @@ agent loose_example:
 ## 10. Tech Stack Recommendations
 - Reference implementation: Python 3.10+
   - Parser libs: lark, or use ANTLR with Python target
+  - Type checking: mypy plugin / pyright extension for APL, leveraging Python typing rules
+  - Code generation: Python `ast` / `black` for emitting canonical module code
   - Virtual environment: poetry or pip + venv
 - Optional: TypeScript implementation for browser/Node integration
 - CI: GitHub Actions (lint, unit tests, integration with fake LLM)
-- Testing: pytest, snapshots for example outputs
+- Testing: pytest, snapshots for example outputs, mypy/pyright checks
 - Linting: black, ruff (Python)
 
 ## 11. Repo Layout (recommended)
@@ -179,17 +201,18 @@ v2+
 - LLM non-determinism — mitigate via structured prompts, constraints, retries, and verification steps.
 - Security risk from primitives — default deny capabilities; require explicit enable for IO.
 
-## 15. First 10 Development Tasks (short-term)
+## 15. First Development Tasks (short-term)
 1. Draft spec: syntax + grammar (apl-spec/grammar.md)
 2. Create repo and Python package scaffold
 3. Implement tokenizer + minimal parser (parse variables, steps, tasks)
-4. Emit AST -> IR JSON
-5. Implement mock runtime with call_llm (deterministic stub) and assert
-6. Add CLI: apl validate <file>, apl run --mock <file>
-7. Add 5 example programs + tests
-8. Add CI pipeline for lint + tests
-9. Write README + contribution guide
-10. Publish MVP branch + release notes
+4. Implement type checker skeleton (name resolution, capability declarations, Python interop stubs)
+5. Emit AST -> IR JSON + Python module
+6. Implement mock runtime with call_llm (deterministic stub) and assert
+7. Add CLI: apl validate <file>, apl check <file>, apl run --mock <file>
+8. Add 5 example programs + tests
+9. Add CI pipeline for lint + tests + static checking
+10. Write README + contribution guide
+11. Publish MVP branch + release notes
 
 ## 16. Developer Guidance & Directions (how to start)
 
