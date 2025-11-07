@@ -94,11 +94,12 @@ agent export_example:
 - packages/python/      - Python reference runtime & CLI
   - src/apl/
     - __init__.py
+    - __main__.py
     - parser.py
     - ast.py
     - runtime.py
-    - primitives/
-    - translator.py
+    - ir.py
+    - compiler.py
     - cli.py
   - tests/
 - examples/             - example .apl programs and golden outputs
@@ -122,27 +123,25 @@ pip install lark-parser pytest black ruff
 2. Implement parser and lexer until tests pass.
 3. Add type/effect checker coverage, ensuring capability misuse is rejected statically.
 4. Generate Python modules and IR artifacts; validate round-trips with golden files.
-5. Run static type/capability checks (`apl check`, mypy plugin) and configure CI gates.
+5. Run static analyses (`apl validate`, mypy plugin) and configure CI gates.
 6. Package deployable artifacts (wheels, containers, serverless bundles) and smoke-test them locally.
 
 ## Quick CLI (development)
 - Validate parsed AST:\
-  `python packages\python\src\apl\__init__.py validate examples\hello.apl`
-- Run static checks:\
-  `python packages\python\src\apl\__init__.py check examples\hello.apl`
+  `python -m apl validate examples\hello.apl`
 - Package for deployment (wheel + IR + manifest):\
-  `python packages\python\src\apl\__init__.py package examples\hello.apl --output dist/`
+  `python -m apl compile examples\hello.apl --python-out dist/hello.py --ir-out dist/hello.json`
 - Translate to LangGraph-like JSON (or adapt the IR for other orchestrators):\
-  `python packages\python\src\apl\__init__.py translate examples\hello.apl --backend langgraph`
+  `python -m apl translate examples\hello.apl`
 - Run in mock mode:\
-  `python packages\python\src\apl\__init__.py run examples\hello.apl --mock`
+  `python -m apl run examples\hello.apl`
 
 ## Next steps to implement
 - Finalize Python-compatible syntax and ensure parser compatibility.
-- Implement MCP/tool connectors, capability manager, and sandboxed runtime.
+- Implement MCP/tool connectors, capability manager, and hardened sandbox runtime.
 - Build packaging/distribution tooling for containers and serverless targets.
-- Add tests, CI automation, and documentation to support production deployment.
-- Split scaffold into modules: parser.py, ast.py, runtime.py, cli.py.
+- Add type/effect checker, CI automation, and expanded documentation to support production deployment.
+- Publish SDK examples demonstrating deployment to local, container, and serverless environments.
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.

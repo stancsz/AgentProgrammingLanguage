@@ -21,7 +21,7 @@ from typing import Dict, Any, List, Optional
 import re
 
 # import shared AST dataclasses from package root
-from . import Program, Task, Step
+from .ast import Program, Task, Step
 
 _agent_re = re.compile(r'^\s*agent\s+([A-Za-z0-9_]+)(?:\s*\((.*?)\))?(?:\s+binds\s+(.*?))?\s*:\s*$', re.IGNORECASE)
 _def_re = re.compile(r'^\s*def\s+([A-Za-z0-9_]+)\s*\((.*?)\)\s*:\s*$', re.IGNORECASE)
