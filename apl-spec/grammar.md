@@ -1,7 +1,7 @@
-# Agent Programming Language — Grammar & Quick Reference
+# Agent Programming Language - Grammar & Quick Reference
 
 Purpose
-- A loose, human-first pseudocode for describing agent workflows.
+- A loose, human-first programming language for describing agent workflows.
 - Designed for easy authoring; translator targets a LangGraph-compatible IR and a reference runtime.
 - Default: nondestructive; IO/network actions require explicit capability flags.
 

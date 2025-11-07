@@ -2,7 +2,7 @@
 Agent Programming Language - minimal reference runtime & CLI scaffold.
 
 Provides:
-- simple parse_apl(text) -> AST (very permissive / pseudocode-friendly)
+- simple parse_apl(text) -> AST (very permissive agent-language-friendly)
 - translate_to_langgraph(ast) -> JSON-serializable dict
 - MockLLM and Runtime for mock execution
 - CLI: validate, translate, run --mock
@@ -46,7 +46,7 @@ class Program:
     tasks: List[Task] = field(default_factory=list)
 
 
-# --- Very small, permissive parser for "loose pseudocode" ---
+# --- Very small, permissive parser for the lightweight agent syntax ---
 _prog_re = re.compile(r'^\s*program\s+([A-Za-z0-9_]+)(?:\((.*?)\))?', re.IGNORECASE)
 _task_re = re.compile(r'^\s*task\s+([A-Za-z0-9_]+)\s*\((.*?)\)\s*', re.IGNORECASE)
 _step_re = re.compile(r'^\s*step\s+(.*)', re.IGNORECASE)

@@ -1,7 +1,18 @@
-# Agent Programming Language (APL) — Product Requirements Document
+# Agent Programming Language (APL) - Product Requirements Document
 
 ## 1. Summary
-Create a small, safe, and testable, loose pseudocode language for specifying, composing, deploying, and managing agents (Agent Programming Language — APL). APL is designed to be the "glue" for building agent systems: a Python-like, mostly pseudocode syntax (Python-compatible where practical) that lets authors define agents as first-class "agent" functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically to execution representations (including a LangGraph-compatible IR), supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and fast deployment and orchestration of agents.
+Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is designed to be the "glue" for building agent systems: a Python-like, intentionally lightweight syntax (Python-compatible where practical) that lets authors define agents as first-class "agent" functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically to execution representations (including a LangGraph-compatible IR), supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and fast deployment and orchestration of agents.
+
+## Expert Design Review (Programming Language Perspective)
+- **Purpose alignment**: The repository communicates APL as a full Agent Programming Language. Maintain strict naming consistency across documentation and tooling to avoid scope drift and to reinforce that the goal is a programmable, testable agent language rather than an informal notation.
+- **Semantics contract (Sections 2, 7)**: The language overview would benefit from an explicit definition of the core semantic model: evaluation order, scoping rules for agent/task definitions, and the lifecycle of variables across nested agents. Without this contract the translator and runtime risk diverging. Recommend adding a normative semantics appendix that describes the execution model in prose plus illustrative state diagrams.
+- **Type and capability systems (Sections 6, 7, 10)**: The current requirements mention "simple typed values" but do not articulate a type discipline. Even a lightweight structural typing scheme or effect annotations for steps would tighten the safety story. Consider introducing capability-annotated type signatures (e.g., `call_llm :: Prompt -> Capability[llm] -> Response`) to give both the interpreter and static tooling a consistent surface.
+- **Deterministic testing and mocks (Sections 4, 8, 13)**: Determinism hinges on reproducible inputs, seeded randomness, and trace capture. Document how mocked LLM responses are versioned and selected, how prompt deltas are diffed, and how to surface divergence between mock and live runs. A recommendation is to mandate golden snapshots for IR plus execution traces in the MVP.
+- **Composable tooling (Sections 5, 9)**: MCP binding is central but under-specified. Outline the contract between APL and MCP servers (authentication, schema discovery, error propagation). Suggest introducing a capability declaration syntax that maps cleanly to MCP metadata to enable static validation before runtime.
+- **Control flow and concurrency (Section 7)**: While minimal control flow is listed, there is no guidance on asynchronous steps, parallel compositions, or cancellation semantics. Consider a follow-on task to define `parallel` and `race` constructs or, at minimum, document how the runtime serializes steps and whether steps may interleave IO.
+- **Versioning and backward compatibility (Sections 11, 12)**: Add a clear versioning policy for both the language and reference runtime (semantic versioning or similar) plus migration guidelines. Early adopters will need to reason about compatibility when upgrading from MVP to v1.
+- **Tooling roadmap (Sections 11, 12, 16)**: The roadmap should call out a reference formatter, linter, and language server plans earlier. These developer ergonomics strongly influence adoption and surface many semantic inconsistencies during authoring.
+- **Safety posture (Sections 6, 14)**: Expand on how sandboxing is enforced (process isolation vs policy checks) and how capability misuse is reported. Recommend adding threat modeling milestones and automated policy tests to the MVP backlog.
 
 ## 2. Objectives
 - Provide a concise language for specifying tasks, pre/post conditions, and sub-tasks.
@@ -85,7 +96,7 @@ agent orchestrator:
   result = sub.run("latest ai news")        # agent-to-agent invocation
   notify = call_llm(model="gpt-4", prompt=f"Notify: {result}")
 
-# Loose pseudocode fallback: single-line steps are treated as call_llm prompts
+# Lightweight fallback: single-line steps are treated as call_llm prompts
 agent loose_example:
   "Search latest research and summarise for me"   # becomes call_llm fallback
 ```

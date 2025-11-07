@@ -1,15 +1,15 @@
-# Agent Pseudocode Language (APL) — README
+# Agent Programming Language (APL) - README
 
-A minimal scaffold and quickstart for the Agent Pseudocode Language (APL) project. This repository contains the language PRD and starter guidance to implement a reference Python runtime, parser, and test harness.
+A minimal scaffold and quickstart for the Agent Programming Language (APL) project. This repository contains the language PRD and starter guidance to implement a reference Python runtime, parser, and test harness.
 
 ## Goals
-- Provide a small, testable pseudocode language for specifying AI task workflows.
+- Provide a small, testable agent programming language for specifying AI task workflows.
 - Ship an MVP reference implementation in Python with a mock LLM runtime.
 - Provide examples, tests, and CI for deterministic validation.
 
 ## Repository layout (recommended)
-- apl-spec/             — language spec & grammar (Markdown)
-- packages/python/      — Python reference runtime & CLI
+- apl-spec/             - language spec & grammar (Markdown)
+- packages/python/      - Python reference runtime & CLI
   - src/apl/
     - __init__.py
     - parser.py
@@ -19,9 +19,9 @@ A minimal scaffold and quickstart for the Agent Pseudocode Language (APL) projec
     - translator.py
     - cli.py
   - tests/
-- examples/             — example .apl programs and golden outputs
-- docs/                 — user guides and tutorials
-- .github/workflows/    — CI
+- examples/             - example .apl programs and golden outputs
+- docs/                 - user guides and tutorials
+- .github/workflows/    - CI
 - README.md
 - PRD.md
 
@@ -36,12 +36,12 @@ pip install lark-parser pytest black ruff
 ```
 
 ## Minimal first files to add
-- apl-spec/grammar.md — language grammar + example programs
-- packages/python/src/apl/parser.py — tokenizer + minimal parser
-- packages/python/src/apl/ast.py — AST node types + IR serializer
-- packages/python/src/apl/runtime.py — mock runtime and capability checks
-- packages/python/src/apl/cli.py — minimal CLI (validate, run --mock)
-- examples/hello.apl — tiny program to parse + run under mock mode
+- apl-spec/grammar.md - language grammar + example programs
+- packages/python/src/apl/parser.py - tokenizer + minimal parser
+- packages/python/src/apl/ast.py - AST node types + IR serializer
+- packages/python/src/apl/runtime.py - mock runtime and capability checks
+- packages/python/src/apl/cli.py - minimal CLI (validate, run --mock)
+- examples/hello.apl - tiny program to parse + run under mock mode
 
 ## Development workflow (recommended)
 1. Write parsing tests first (pytest) describing expected AST for small APL snippets.
