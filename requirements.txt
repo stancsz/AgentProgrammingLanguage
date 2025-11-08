@@ -1,0 +1,9 @@
+# Base runtime dependencies for the Agent Programming Language Python package.
+# Currently, the runtime uses only the Python standard library. Pin external
+# libraries here once non-stdlib dependencies are introduced.
+
+# Development and tooling dependencies (install manually or via `pip install -e .[dev]`)
+# lark-parser>=0.12.0
+# pytest>=7.0.0
+# black>=23.0.0
+# ruff>=0.1.0

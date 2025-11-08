@@ -11,6 +11,7 @@ from .parser import parse_apl
 from .runtime import Runtime
 from .ir import to_langgraph_ir
 from .compiler import write_compiled_artifacts
+from .n8n import to_n8n_workflow
 
 
 def _load_program(path: Path):
@@ -54,6 +55,16 @@ def _cmd_compile(path: Path, python_out: Path | None, ir_out: Path | None) -> No
     write_compiled_artifacts(program, python_out=python_out, ir_path=ir_out)
 
 
+def _cmd_export_n8n(path: Path, runtime_url: str | None, out: Path | None) -> None:
+    program = _load_program(path)
+    workflow = to_n8n_workflow(program, runtime_url=runtime_url)
+    payload = json.dumps(workflow, indent=2)
+    if out:
+        out.write_text(payload, encoding="utf-8")
+    else:
+        print(payload)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="apl", description="Agent Programming Language CLI")
     sub = parser.add_subparsers(dest="command")
@@ -73,6 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_comp.add_argument("--python-out", type=Path, help="Path to write compiled Python module")
     p_comp.add_argument("--ir-out", type=Path, help="Path to write IR JSON")
 
+    p_n8n = sub.add_parser("export-n8n", help="Generate an n8n workflow JSON from annotated tasks")
+    p_n8n.add_argument("file", type=Path)
+    p_n8n.add_argument("--runtime-url", type=str, help="Override the runtime URL used inside the generated workflow")
+    p_n8n.add_argument("--out", type=Path, help="Path to write the workflow JSON (stdout if omitted)")
+
     return parser
 
 
@@ -88,6 +104,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _cmd_run(args.file, allow_storage=args.allow_storage)
     elif args.command == "compile":
         _cmd_compile(args.file, python_out=args.python_out, ir_out=args.ir_out)
+    elif args.command == "export-n8n":
+        _cmd_export_n8n(args.file, runtime_url=getattr(args, "runtime_url", None), out=getattr(args, "out", None))
     else:
         parser.print_help()
 

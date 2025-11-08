@@ -5,6 +5,7 @@ from .parser import parse_apl
 from .runtime import Runtime, MockLLM
 from .compiler import compile_to_python_module, write_compiled_artifacts
 from .ir import to_langgraph_ir
+from .n8n import N8NClient, to_n8n_workflow
 
 __all__ = [
     "Program",
@@ -16,7 +17,8 @@ __all__ = [
     "compile_to_python_module",
     "write_compiled_artifacts",
     "to_langgraph_ir",
+    "N8NClient",
+    "to_n8n_workflow",
 ]
 
 __version__ = "0.1.0"
-

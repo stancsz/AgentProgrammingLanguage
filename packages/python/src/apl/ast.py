@@ -26,6 +26,7 @@ class Task:
     precondition: Optional[str] = None
     postcondition: Optional[str] = None
     steps: List[Step] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -35,4 +36,3 @@ class Program:
     name: str
     meta: Dict[str, Any] = field(default_factory=dict)
     tasks: List[Task] = field(default_factory=list)
-

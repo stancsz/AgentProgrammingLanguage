@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from .ast import Program, Step
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .n8n import N8NClient
 
 
 class MockLLM:
@@ -23,9 +26,10 @@ class MockLLM:
 class Runtime:
     """Reference runtime that interprets an APL Program."""
 
-    def __init__(self, llm: Optional[MockLLM] = None, allow_storage: bool = False):
+    def __init__(self, llm: Optional[MockLLM] = None, allow_storage: bool = False, n8n_client: Optional["N8NClient"] = None):
         self.llm = llm or MockLLM()
         self.allow_storage = allow_storage
+        self.n8n_client = n8n_client
         self.vars: Dict[str, Any] = {}
 
     # --------------------------------------------------------------------- #
@@ -37,6 +41,14 @@ class Runtime:
             return eval(expr, {"__builtins__": {}}, dict(self.vars))
         except Exception as exc:  # pragma: no cover - provide better error later
             raise RuntimeError(f"Expression eval error in '{expr}': {exc}") from exc
+
+    def _eval_kwargs(self, args: str) -> Dict[str, Any]:
+        if not args:
+            return {}
+        try:
+            return dict(eval(f"dict({args})", {"__builtins__": {}}, dict(self.vars)))
+        except Exception as exc:  # pragma: no cover - de-risked by unit tests later
+            raise RuntimeError(f"Failed to parse kwargs for '{args}': {exc}") from exc
 
     def execute_program(self, program: Program) -> Dict[str, Any]:
         """Execute a program and return the final variable snapshot per task."""
@@ -81,9 +93,26 @@ class Runtime:
                 raise RuntimeError(f"Assertion failed: {expr}")
             return True
 
+        if action.startswith("n8n."):
+            if self.n8n_client is None:
+                raise RuntimeError(f"n8n action '{action}' requested but runtime was not initialised with an N8NClient.")
+            kwargs = self._eval_kwargs(step.args or "")
+            sub_action = action.split(".", 1)[1]
+            if sub_action in {"trigger_webhook", "webhook"}:
+                path = kwargs.get("path")
+                if not path:
+                    raise RuntimeError("n8n webhook call requires a 'path' argument.")
+                payload = kwargs.get("payload") or kwargs.get("data") or {}
+                method = kwargs.get("method", "POST")
+                return self.n8n_client.trigger_webhook(path, payload=payload, method=method)
+            if sub_action in {"call_workflow", "workflow"}:
+                workflow_id = kwargs.get("workflow_id") or kwargs.get("id")
+                payload = kwargs.get("payload") or {}
+                return self.n8n_client.call_workflow(workflow_id, payload=payload)
+            raise RuntimeError(f"Unsupported n8n sub-action '{sub_action}'.")
+
         if action and "." in action:
             # Treat dotted calls (e.g., news.search) as JSON-friendly log output
             return json.dumps({"tool": action, "args": step.args})
 
         return step.raw
-

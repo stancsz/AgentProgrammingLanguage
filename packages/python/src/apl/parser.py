@@ -30,6 +30,57 @@ _requires_re = re.compile(r'.*requires\s+capability\.([A-Za-z0-9_]+)', re.IGNORE
 _assign_call_re = re.compile(r'^\s*([A-Za-z0-9_]+)\s*=\s*(.+)$')  # left = right
 _call_re = re.compile(r'^\s*([A-Za-z0-9_.]+)\s*\((.*)\)\s*$', re.IGNORECASE)
 _string_line_re = re.compile(r'^\s*["\'](.*)["\']\s*$')
+_n8n_comment_re = re.compile(r'^\s*#\s*n8n:\s*(.+)$', re.IGNORECASE)
+
+
+def _strip_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+def _parse_kv_pairs(text: str) -> Dict[str, str]:
+    pairs: Dict[str, str] = {}
+    for key, raw_val in re.findall(r'([A-Za-z0-9_]+)\s*=\s*(".*?"|\'.*?\'|[^\s]+)', text):
+        pairs[key] = _strip_quotes(raw_val)
+    return pairs
+
+
+def _merge_metadata(dest: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
+    for key, value in update.items():
+        if key in dest and isinstance(dest[key], dict) and isinstance(value, dict):
+            dest[key] = _merge_metadata(dict(dest[key]), value)
+        else:
+            dest[key] = value
+    return dest
+
+
+def _parse_n8n_comment(comment: str) -> Dict[str, Any]:
+    """
+    Translate directives such as
+      # n8n: trigger webhook path="/foo" method="POST"
+    into structured metadata for downstream exporters.
+    """
+    comment = comment.strip()
+    if not comment:
+        return {}
+    tokens = comment.split()
+    directive = tokens[0].lower()
+    remainder = comment[len(tokens[0]) :].strip()
+
+    if directive == "trigger" and len(tokens) >= 2:
+        trigger_type = tokens[1].lower()
+        config_text = remainder[len(tokens[1]) :].strip()
+        config = _parse_kv_pairs(config_text)
+        return {"n8n": {"trigger": {"type": trigger_type, "config": config}}}
+    if directive == "workflow":
+        config = _parse_kv_pairs(remainder)
+        return {"n8n": {"workflow": config}}
+    if directive == "node":
+        config = _parse_kv_pairs(remainder)
+        return {"n8n": {"node": config}}
+    config = _parse_kv_pairs(remainder)
+    return {"n8n": {directive: config or remainder}}
 
 def _parse_binds(binds_text: str) -> Dict[str, str]:
     """
@@ -59,10 +110,21 @@ def parse_apl(text: str) -> Program:
 
     current_agent: Optional[str] = None
     current_task: Optional[Task] = None
+    pending_task_meta: Dict[str, Any] = {}
 
     for raw in lines:
         ln = raw.rstrip("\n")
         s = ln.strip()
+
+        m_n8n = _n8n_comment_re.match(ln)
+        if m_n8n:
+            meta_update = _parse_n8n_comment(m_n8n.group(1))
+            if current_task:
+                current_task.metadata = _merge_metadata(dict(current_task.metadata), meta_update)
+            else:
+                pending_task_meta = _merge_metadata(dict(pending_task_meta), meta_update)
+            continue
+
         if not s or s.startswith("#"):
             continue
 
@@ -108,6 +170,9 @@ def parse_apl(text: str) -> Program:
             if program is None:
                 program = Program(name=program_name, meta=program_meta)
             program.tasks.append(task)
+            if pending_task_meta:
+                task.metadata = _merge_metadata(dict(task.metadata), pending_task_meta)
+                pending_task_meta = {}
             current_task = task
             continue
 

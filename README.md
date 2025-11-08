@@ -1,5 +1,7 @@
 # Agent Programming Language (APL) - README
 
+A statically-typed Domain-Specific Language (DSL) for agent engineering that compiles (or transpiles) to Python.
+
 APL is an open agent-focused programming language that targets the Python ecosystem. The project aims to design, specify, and ship a production-ready language stack—grammar, type system, compiler, runtime, tooling—that lets teams express autonomous agent behavior as audited, testable code and deploy it consistently across laptops, containers, and cloud platforms. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts.
 
 ## Goals
@@ -114,8 +116,8 @@ agent export_example:
 python -m venv .venv
 .venv\Scripts\activate
 
-# install minimal dev deps
-pip install lark-parser pytest black ruff
+# install APL package in editable mode with dev extras
+pip install -e .[dev]
 ```
 
 ## Development workflow (recommended)
@@ -133,6 +135,8 @@ pip install lark-parser pytest black ruff
   `python -m apl compile examples\hello.apl --python-out dist/hello.py --ir-out dist/hello.json`
 - Translate to LangGraph-like JSON (or adapt the IR for other orchestrators):\
   `python -m apl translate examples\hello.apl`
+- Generate n8n workflow JSON for annotated agents:\
+  `python -m apl export-n8n examples\hello.apl --out dist/hello-n8n.json`
 - Run in mock mode:\
   `python -m apl run examples\hello.apl`
 
@@ -142,6 +146,30 @@ pip install lark-parser pytest black ruff
 - Build packaging/distribution tooling for containers and serverless targets.
 - Add type/effect checker, CI automation, and expanded documentation to support production deployment.
 - Publish SDK examples demonstrating deployment to local, container, and serverless environments.
+
+## n8n integration (experimental)
+- Annotate agent entrypoints with inline comments to describe how they should surface inside n8n:
+
+  ```apl
+  agent notifier:
+    # n8n: trigger webhook path="/apl/notifier" method="POST"
+    def run(payload):
+      response = n8n.workflow(workflow_id="slack-notify", payload=payload)
+      return response
+  ```
+
+- Run `python -m apl export-n8n your_agent.apl --out dist/workflow.json` to emit an n8n workflow definition pairing each trigger with an HTTP Request node that calls back into the APL runtime (override the target with `--runtime-url`).
+- Initialise `apl.runtime.Runtime` with an `N8NClient` to reuse authenticated connectors:
+
+  ```python
+  from apl.n8n import N8NClient
+  from apl.runtime import Runtime
+
+  client = N8NClient(base_url="https://n8n.example.com", api_key="<api-key>")
+  runtime = Runtime(n8n_client=client)
+  ```
+
+- Within agent code, call `n8n.webhook(...)` or `n8n.workflow(...)` steps to delegate triggers/actions to n8n while keeping APL agents lightweight.
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.
