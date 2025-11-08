@@ -147,6 +147,20 @@ pip install -e .[dev]
 - Add type/effect checker, CI automation, and expanded documentation to support production deployment.
 - Publish SDK examples demonstrating deployment to local, container, and serverless environments.
 
+## Examples
+- `examples/hello.apl` — Introductory language tour (parsing, MCP calls, sub-agents).
+- `examples/n8n_webhook.apl` — Minimal n8n-triggered notifier agent.
+- `examples/slack_support.apl` — Slack ticket triage with knowledge-base updates.
+- `examples/customer_support.apl` — Email/CRM escalation workflow.
+- `examples/coding_expert.apl` — Code-review assistant for GitHub PRs.
+- `examples/github_agent.apl` — Issue grooming and label suggestions.
+- `examples/incident_responder.apl` — PagerDuty + Slack incident handler.
+- `examples/release_brief.apl` — Automated release note publisher.
+- `examples/data_pipeline_monitor.apl` — Pipeline health summariser.
+- `examples/meeting_scheduler.apl` — Calendar coordination and email drafting.
+- `examples/lead_qualification.apl` — Lead scoring and sales notification.
+- `examples/knowledge_curator.apl` — Search synthesis to feed internal KBs.
+
 ## n8n integration (experimental)
 - Annotate agent entrypoints with inline comments to describe how they should surface inside n8n:
 
