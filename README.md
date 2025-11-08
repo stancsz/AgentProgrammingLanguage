@@ -150,7 +150,7 @@ pip install -e .[dev]
 ## Examples
 - `examples/hello.apl` — Introductory language tour (parsing, MCP calls, sub-agents).
 - `examples/n8n_webhook.apl` — Minimal n8n-triggered notifier agent.
-- `examples/slack_support.apl` — Slack ticket triage with knowledge-base updates.
+- `examples/slack_support/slack_support.apl` — Slack ticket triage with knowledge-base updates.
 - `examples/customer_support.apl` — Email/CRM escalation workflow.
 - `examples/coding_expert.apl` — Code-review assistant for GitHub PRs.
 - `examples/github_agent.apl` — Issue grooming and label suggestions.
@@ -160,6 +160,7 @@ pip install -e .[dev]
 - `examples/meeting_scheduler.apl` — Calendar coordination and email drafting.
 - `examples/lead_qualification.apl` — Lead scoring and sales notification.
 - `examples/knowledge_curator.apl` — Search synthesis to feed internal KBs.
+- `examples/slack_support/runner.py` — FastAPI runner that exposes the Slack support agent.
 
 ## n8n integration (experimental)
 - Annotate agent entrypoints with inline comments to describe how they should surface inside n8n:
@@ -184,6 +185,11 @@ pip install -e .[dev]
   ```
 
 - Within agent code, call `n8n.webhook(...)` or `n8n.workflow(...)` steps to delegate triggers/actions to n8n while keeping APL agents lightweight.
+- To drive agents behind HTTP endpoints:\
+  1. Copy `examples/slack_support/.env.example` to either `examples/slack_support/.env` or the repo root `.env`, then set `SLACK_SUPPORT_API_TOKEN=<random-token>` and fill Slack credentials.\
+  2. Install extras: `pip install -e .[dev] fastapi uvicorn[standard]`.\
+  3. Run `uvicorn examples.slack_support.runner:app --host 0.0.0.0 --port 8000`.\
+  4. Configure the n8n HTTP Request node to call `http://localhost:8000/agents/slack-support` with header `Authorization: Bearer <same-token>` while its Slack node posts the formatted reply.
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.
