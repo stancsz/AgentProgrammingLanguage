@@ -1,4 +1,4 @@
-# Agent Programming Language (APL) - README
+﻿# Agent Programming Language (APL) - README
 
 A statically-typed Domain-Specific Language (DSL) for agent engineering that compiles (or transpiles) to Python.
 
@@ -18,70 +18,31 @@ APL is an open agent-focused programming language that targets the Python ecosys
 - **Runtime contracts**: Every agent function publishes contracts (input/output types, required capabilities, protocol bindings) that downstream orchestrators can inspect at runtime through reflection APIs.
 
 ## Why APL now
-- **Protocol-ready agents**: APL lets authors express explicit capabilities, contracts, and message schemas, making it straightforward to target emerging A2A (agent-to-agent), MCP (model context), and AP2 (agent payments) protocols without rewriting business logic. Example:
+- Why a language (not only a package): libraries and frameworks can glue tools together, but they do not provide a single, auditable source-of-truth for agent intent, effects, and capabilities. A language lets you express contracts, capability requirements, and inter-agent protocols as first-class, statically-checkable constructs. That makes agents portable, reviewable, and safe by default — properties that ad-hoc packages and recipes struggle to guarantee.
+
+- Stability across surface churn: tool APIs, SDKs, and runtime services evolve rapidly. APL decouples intent (what the agent should do and what capabilities it needs) from any single runtime or SDK implementation. The compiler and runtime become a stable translation layer that adapts to changing integrations without rewriting business logic.
+
+- Static safety and observability: encoding side-effects and permissions in the language enables static checks (rejecting unauthorized storage or external calls), capability manifests, and richer runtime contracts. These guarantees are hard to achieve reliably with a loose collection of packages.
+
+- Composition and low-code agent development: APL treats agent composition, delegation, and capability bindings as language primitives. That lowers the barrier to creating and reusing agents (low-code), and it makes generated or human-written agents easier for LLMs and operator tools to understand, validate, and deploy quickly.
+
+- Faster iteration for AI-driven development: when agents are expressed as concise, typed source, AI tooling can inspect, refactor, and synthesize agents more reliably. This improves automation in testing, code generation, and deployment pipelines so new agents can be produced and verified faster than when using unstructured code + config.
+
+- Portability & integration-first design: APL compiles to a portable IR and Python artifacts that can target local runtimes, containers, or managed services. That portability, paired with formal capability manifests, makes it straightforward to adopt new runtimes or registry-based integrations (MCP/A2A) without changing agent source.
+
+Short example (intent vs implementation):
 
 ```apl
-agent billing_broker binds a2a.market as registry, mcp.payments as wallet:
-  capability ap2.transfer(limit="500.00", currency="USD")
+agent billing_broker binds mcp.payments as wallet:
+  capability payments.charge
 
-  def hire(invoice_request):
-    offer = registry.match(role="accounts_payable", scope=invoice_request.scope)
-    quote = offer.negotiate(invoice_request.details)
-    wallet.authorise(amount=quote.cost, receipt=invoice_request.id)
-    return quote.contract_id
+  def hire(invoice):
+    # intent: charge the invoice source; runtime enforces capability and binding
+    charge_result = wallet.charge(amount=invoice.total, id=invoice.id)
+    return charge_result.receipt
 ```
 
-- **Programmable multi-agent systems**: Instead of wiring flows in bespoke orchestration code, APL treats agent composition, delegation, and coordination as first-class language constructs, aligning with multi-agent system and AI orchestration patterns. Example:
-
-```apl
-agent orchestrator:
-  planner = research_planner()
-  coder = codegen_agent()
-  qa = reviewer_agent()
-
-  def deliver(feature_spec):
-    plan = planner.plan(feature_spec)
-    implementation = coder.build(plan)
-    report = qa.verify(implementation, criteria=plan.tests)
-    return { "plan": plan, "implementation": implementation, "qa": report }
-```
-
-- **Agentic RAG workflows**: The language captures retrieval strategies, decision checkpoints, and verification steps so that Agentic RAG pipelines become testable programs rather than ad-hoc prompt chains. Example:
-
-```apl
-agent research_report:
-  def generate(topic):
-    search_results = retrieve(query=topic, depth=3)
-    filtered = for each doc in search_results where doc.credibility >= 0.8 collect doc
-    synthesis = call_llm(model="researcher", prompt=f"Summarise {filtered}")
-    assert "sources:" in synthesis.lower()
-    return synthesis
-```
-
-- **Reasoning frameworks in code**: ReAct, Plan-and-Solve, Reflexion, and related reasoning loops map naturally to APL control flow and metadata, enabling reuse, testing, and deterministic replay of complex reasoning behaviors. Example:
-
-```apl
-agent reflexive_solver:
-  def solve(task):
-    plan = call_llm(model="planner", prompt=f"Plan: {task}")
-    result = execute_plan(plan)
-    critique = call_llm(model="critic", prompt=f"Review plan {plan} result {result}")
-    if "retry" in critique.lower():
-      revised = refine_plan(plan, critique)
-      return execute_plan(revised)
-    return result
-```
-
-- **Integration optionality**: APL emits an execution IR that can plug into LangGraph or any other orchestrator - LangGraph is a supported target, not a hard dependency - so teams can adopt existing runtimes while keeping agent intent in portable source code. Packaging tools turn that source into wheels or containers ready for local hosts or managed clouds. Example:
-
-```apl
-agent export_example:
-  metadata backends = ["langgraph", "custom-runtime"]
-
-  def run(inputs):
-    step = call_llm(model="orchestrator", prompt=f"Process {inputs}")
-    return step
-```
+This separation (intent + capability + binding) is what a package alone cannot guarantee at compile time or in CI; a language gives you that guarantee, enabling safer, faster, and more reproducible agent development.
 
 ## Compilation & runtime overview
 - Parse with a deterministic grammar (see `apl-spec/grammar.md`) producing a typed AST.

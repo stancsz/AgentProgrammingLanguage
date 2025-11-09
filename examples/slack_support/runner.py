@@ -8,7 +8,7 @@ Quickstart:
 4. Configure the n8n webhook HTTP Request node to call
    `http://localhost:8000/agents/slack-support` with header
    `Authorization: Bearer <same-token>`. Route any Slack delivery through an MCP server
-   sourced from the MCP registry (https://modelcontextprotocol.io/registry).
+   sourced from the MCP server inventory (https://github.com/modelcontextprotocol/servers).
 """
 
 from __future__ import annotations

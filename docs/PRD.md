@@ -1,22 +1,33 @@
 # Agent Programming Language (APL) - Product Requirements Document
 
 ## 1. Summary
-Create a small, safe, and testable agent programming language for specifying, composing, deploying, and managing agents (Agent Programming Language - APL). APL is a constrained, Python-aligned language: its lexer, indentation, and expression grammar are a strict subset of Python 3.12; agent-specific constructs (e.g., `agent`, capability annotations) extend that subset with deterministic semantics that compile to Python modules. Authors define agents as first-class functions, compose sub-agents, bind MCP servers and external tools, and express agent-to-agent interactions. APL translates deterministically both to execution representations (including, but not limited to, a LangGraph-compatible IR) and to Python `ast` modules, supports MCP/tool invocation, capability gating, sandboxing, deterministic testing (mock LLMs), and produces portable deployment bundles for local runtimes or managed clouds (AWS, GCP, Azure, on-prem).
+Agent Programming Language (APL) exists so that a team can define, run, and ship a production agent with fewer than 40 lines of source and a single deployment command. The language stays Python-aligned on purpose: every construct can be linted with standard Python tooling, formatted with opinionated formatters, and statically analysed alongside host Python code. The runtime honours capability gating, deterministic testing (mock LLMs), and packaging targets ranging from laptops to containers and serverless environments, keeping the authoring surface declarative while enforcing safety by default.
 
-## 1.2 Language definition goals
+APL’s current iteration focuses on closing the tooling gap discovered in Issue #16 (Design audit: improve MCP discovery, tool adapters, and runtime capability model). The reference implementation must own structured tool resolution, safe evaluation without `eval`, explicit capability enforcement, and IDE ergonomics (syntax highlighting, linting) so that shipping an agent feels the same as shipping a high-quality Python microservice.
+
+## 1.1 Language Definition Goals
 - **Python surface compatibility**: Every valid APL program conforms to Python lexical rules and can be linted/pretty-printed with Python tooling; invalid constructs should produce Python-esque diagnostics.
 - **Static capability/effect typing**: Side-effectful primitives require declared capabilities; the type checker enforces capability flow, effect subtyping, and input/output contracts.
 - **Module and package system**: Agents compile to Python packages with import/export directives, version metadata, and dependency manifests (`apl.toml`) to enable pip-style distribution.
 - **Deterministic semantics**: Evaluation order, scoping, and runtime behavior must be defined formally (operational semantics document + executable reference tests).
 - **Bidirectional interop**: APL code can call Python libraries through safe adapters; Python hosts can embed and invoke APL agents through the generated module artifacts.
 
-## 1.1 Modern Agent Ecosystem Drivers
+## 1.2 Modern Agent Ecosystem Drivers
 - **Protocol alignment (A2A, MCP, AP2)**: APL provides explicit constructs for declaring agent capabilities, contracts, and payment flows so the same source program can target agent-to-agent protocols, tool-facing model context protocols, and emerging payments rails without embedding protocol specifics in business logic.
 - **Multi-agent systems & orchestration**: Task decomposition, sub-agent composition, and coordination semantics are expressed as code, giving AI orchestration layers a deterministic contract for delegation, retries, and audit while keeping the orchestration engine (LangGraph or alternatives) pluggable.
 - **Agentic RAG**: Retrieval intents, query refinement loops, and verification gates are encapsulated as reusable language patterns, enabling deterministic testing and golden traces for research-style agentic RAG workflows.
 - **Reasoning frameworks (ReAct, Plan-and-Solve, Reflexion)**: Control-flow primitives and metadata allow these reasoning loops to be encoded, versioned, and validated within APL, instead of being hidden in prompts or bespoke Python glue.
 - **Extensibility for future standards**: By separating declarative agent intent from execution backends, APL keeps room for new interoperability layers, marketplaces, or simulation environments while preserving a single source of truth for agent behavior.
 - **Deployment agility**: Portable code generation and packaging make it straightforward to ship the same agent to laptops, Kubernetes clusters, or serverless runtimes while honoring declared capabilities and policies.
+
+## 1.3 Current Focus (Issue #16: Tooling & Safety Audit)
+- Introduce a first-class `ToolRegistry` and `ToolProxy` abstraction that owns registration, discovery, invocation, and telemetry for all bound tools.
+- Implement an MCP resolver that maps `binds mcp.*` statements to registry metadata, creates `MCPToolProxy` instances, and caches credentials/configuration overrides.
+- Replace the dotted-call heuristic in `Runtime.execute_step` with structured dispatch that surfaces deterministic errors, contracts, and capability checks.
+- Add a `CapabilityManager` that enforces declarative capability manifests at runtime and powers future static analysis.
+- Replace `eval`-based expression parsing with a safe literal/AST evaluator and ensure kwargs resolution is sandboxed.
+- Ship regression tests for bind resolution, tool dispatch, and unsafe-eval prevention.
+- Deliver editor ergonomics: Python linting via `ruff`, syntax highlighting (Tree-sitter grammar + VS Code extension), and language server roadmap entries.
 
 ## Expert Design Review (Programming Language Perspective)
 - **Purpose alignment**: The repository communicates APL as a full Agent Programming Language. Maintain strict naming consistency across documentation and tooling to avoid scope drift and to reinforce that the goal is a programmable, testable agent language rather than an informal notation.
@@ -41,10 +52,11 @@ Create a small, safe, and testable agent programming language for specifying, co
 - Early integrators (apps that want controlled LLM agents)
 
 ## 4. Success Metrics
-- MVP: parse >90% of authoring samples without errors.
-- Execution: end-to-end task runs reproduce expected outputs in >=70% of test cases.
-- Safety: sandboxing prevents network or filesystem access unless explicitly allowed.
-- Usability: clear docs and 5 example end-to-end workflows.
+- Author-to-deploy path: showcase agent runs that go from `.apl` source to a deployed runtime in ≤40 lines of code and ≤5 terminal commands (validate → lint → compile → package → run).
+- Tool resolution: 100% of declared `binds` resolve through `ToolRegistry` or fail-fast with actionable diagnostics; unit tests cover ≥90% of registry and proxy code branches.
+- Safety: zero dynamic `eval` usage in runtime paths; capability gating verified by automated tests and documented threat models.
+- Tooling ergonomics: repository passes `ruff check`, `mypy`, and formatting hooks in CI; `.apl` files render with syntax highlighting and linting inside VS Code and other major IDEs.
+- Determinism: reference agents run identically across local, container, and serverless targets with captured execution traces for replay.
 
 ## 5. Use Cases
 - Compose multi-step data processing tasks (fetch, transform, summarise).
@@ -60,6 +72,10 @@ Functional:
 - Translator that maps AST to LLM prompts or to an interpreter runtime, with pluggable backends for LangGraph and other orchestration targets.
 - Test harness that runs examples deterministically (with mock LLM).
 - CLI to validate, lint, run, and test APL scripts.
+- Structured tool management: `ToolRegistry` + `ToolProxy` abstractions for registering, resolving, and invoking bound tools with tracing hooks.
+- MCP resolver that hydrates proxies from registry metadata, supports offline caches, and exposes typed capability manifests.
+- Runtime `CapabilityManager` that enforces declared capabilities and surfaces violations before execution.
+- Safe expression and kwargs evaluation that relies on literal/AST parsing instead of Python `eval`.
 - Static type checker (Python-aligned syntax + capability/effect system) and code generator that emits human-readable Python modules (`.py`) as well as portable IR artifacts.
 - Packaging toolchain to produce deployable artifacts (wheels, OCI images, serverless bundles) with embedded capability manifests and environment requirements.
 
@@ -69,6 +85,8 @@ Non-functional:
 - Portable: implement reference runtime in Python (primary) and Node.js (optional).
 - Simple: keep syntax minimal to reduce parsing complexity.
 - Deployable: generated artifacts must run consistently across local machines, container platforms, and major clouds (AWS, GCP, Azure) with configuration-driven capability provisioning.
+- Low-friction authoring: maintain ≤40-LOC baseline examples and keep CLI workflows opinionated and scriptable.
+- IDE support: provide syntax highlighting (Tree-sitter grammar + VS Code extension), file associations, and linting hooks that reuse Python tooling.
 
 Safety & Governance:
 - Explicit capability model: any action that does IO or network must be allowed in runtime flags.
@@ -234,38 +252,41 @@ APL aims to interoperate with leading open-source agent tooling. Repositories cl
 
 SDKs and adapters should be developed so that APL capability manifests can bind to these libraries with minimal glue code, preserving the declarative nature of agent definitions.
 
-## 18. Developer Guidance & Directions (how to start)
+## 17. Developer Guidance & Directions
 
-Minimal immediate steps (commands are suggestions — pick venv manager of choice):
-- Create repo and a Python package:
-  - python -m venv .venv
-  - .venv\Scripts\activate
-  - pip install lark-parser pytest black ruff
-- Create files:
-  - apl-spec/grammar.md
-  - packages/python/src/apl/parser.py
-  - packages/python/src/apl/ast.py
-  - packages/python/src/apl/runtime.py
-  - examples/hello.apl
-  - README.md
-- Implement a tiny parser that can parse:
-  - program/task/step/variable/assignment/assert lines
-- Implement runtime with a mocked call_llm that returns deterministic output from fixtures.
-- Wire CLI using argparse or click to expose validate/run/test.
+Refer to `SETUP_RULES.md` for the full environment contract. Quick start:
+1. Use Python 3.12 and create/activate a virtual environment (`python -m venv .venv`, then `.venv\Scripts\activate` on Windows or `source .venv/bin/activate` on Unix).
+2. Install dependencies with `pip install -e .[dev]` to pull in runtime code, `ruff`, `pytest`, `mypy`, and development stubs.
+3. Run the fast feedback loop before pushing:
+   - `ruff check .`
+   - `mypy packages/python/src`
+   - `pytest`
+4. Compile and execute agents end-to-end:
+   - `python -m apl validate path/to/agent.apl`
+   - `python -m apl compile path/to/agent.apl --python-out dist/agent.py --ir-out dist/agent.json`
+   - `python -m apl run path/to/agent.apl`
+5. Configure editor support:
+   - Install the forthcoming "APL Language Support" VS Code extension (see `ROADMAP.md`), or temporarily map `*.apl` to Python in `settings.json`.
+   - Enable `ruff` and `mypy` VS Code integrations so `.apl`-generated Python emits diagnostics inline.
+6. Keep docs in sync: update `MISSION.md`, `DESIGN_PRINCIPLES.md`, `ROADMAP.md`, `MILESTONE.md`, and relevant examples whenever behavior or workflows change.
 
-Suggested development order:
-1. Spec -> tests that describe parsing expectations (TDD).
-2. Parser -> pass parsing tests.
-3. AST -> IR serializer tests.
-4. Runtime with mock LLM -> integration tests for example scripts.
-5. CI and docs.
+Suggested implementation order for major features:
+1. Language spec & conformance tests.
+2. Tooling primitives (ToolRegistry, MCP resolver, CapabilityManager, safe evaluators).
+3. Runtime orchestration and adapter plugins.
+4. Packaging, deployment surfaces, and CLI ergonomics.
+5. Sample agents + scenario tests that demonstrate the <40 LOC deployment path.
 
-## 17. Example contributor checklist (for PRs)
-- [ ] Add/update spec entry if syntax changes
-- [ ] Add parser tests for new syntax
-- [ ] Update runtime tests if behavior changes
-- [ ] Documentation updated
-- [ ] Add example program demonstrating feature
+## 18. Example contributor checklist (for PRs)
+- [ ] Link an issue or milestone and update `ROADMAP.md` if scope changes.
+- [ ] Add/update spec entry if syntax or semantics change.
+- [ ] Add parser/type/runtime tests covering new behavior (ToolRegistry and capability flows when relevant).
+- [ ] Run `ruff`, `mypy`, and `pytest`; capture outputs in the PR description.
+- [ ] Update docs (`MISSION.md`, `DESIGN_PRINCIPLES.md`, `PRD.md`, examples) and refresh sample agents if behavior changes.
 
-## 18. Next immediate deliverable
-- Create repository skeleton, grammar.md, and a "hello world" APL example that parses and runs in mock mode.
+## 19. Next immediate deliverables
+- Issue #16 alignment: land `ToolRegistry` plumbing with runtime dispatch replacement and regression tests.
+- Safety milestone: replace `eval`-based evaluation with literal/AST parsing safeguarded by the CapabilityManager.
+- MCP integration: implement registry client + proxy stack with fixture-based tests and documented override strategy.
+- Editor ergonomics: publish interim VS Code configuration snippet, outline Tree-sitter grammar milestones, and ensure `.apl` files highlight correctly.
+- Deployment path demo: maintain a reference agent (<40 LOC) that validates → lints → compiles → packages → runs inside a containerised mock runtime.
