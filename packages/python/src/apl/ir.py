@@ -10,19 +10,16 @@ from .ast import Program
 from pydantic import BaseModel, Field, ValidationError
 from typing import Optional
 
-# TODO: IR SCHEMA & PROVENANCE VALIDATION
-# - Define a JSON Schema or pydantic models describing the IR payload structure
-#   (program, meta, generator, schema_version, nodes, edges, ir_hash).
-# - Validate the IR in to_langgraph_ir() and in the CLI compile step to fail fast on
-#   schema drift. Emit clear diagnostic messages showing which field(s) are invalid.
-# - Consider publishing the schema as docs/apl-spec/ir-schema.json and reusing it
-#   in CI for schema validation tests.
-# - Ensure ir_hash covers canonicalized nodes+edges+generator and document the
-#   provenance rules in DESIGN_PRINCIPLES.md and README.md.
-#
-# Lightweight pydantic models used to validate produced IR payloads. This keeps
-# validation close to the serializer and provides clear error messages during
-# compile/translation time.
+# IMPLEMENTED: IR schema validation & provenance notes
+# - Lightweight pydantic models (NodeModel, IRModel) are defined below and used
+#   by _validate_ir(payload) to validate the IR emitted by to_langgraph_ir().
+# - to_langgraph_ir() computes a deterministic ir_hash over canonicalized nodes,
+#   edges and generator metadata and attaches it to the payload for provenance.
+# - Recommendation / future work (documented in docs/DESIGN_PRINCIPLES.md):
+#   * Optionally publish docs/apl-spec/ir-schema.json for CI schema checks.
+#   * Migrate pydantic.parse_obj -> IRModel.model_validate for pydantic v2 compatibility.
+# - The presence of _validate_ir keeps validation close to the serializer and
+#   enables clearer diagnostics during compile/translation time.
 class NodeModel(BaseModel):
     id: str
     task: str

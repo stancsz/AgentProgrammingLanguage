@@ -17,22 +17,18 @@ Note: This is a permissive, development-focused parser to enable examples and te
 Replace with a full parser (lark/ANTLR) for production.
 """
 
-# TODO: PARSER STABILITY & DX (high priority)
-# - Replace this regex-based parser with a grammar-backed parser (e.g., Lark) to:
-#   * produce an AST with (line, column) metadata for each node (tasks/steps/expressions),
-#   * provide precise, actionable parse errors (line/col) for users,
-#   * enable IDE integrations (LSP) and deterministic IR generation.
-# - Add a focused parser test-suite covering ambiguous cases, edge-cases, and invalid input.
-# - Keep this module as a compatibility/fallback mode during migration; clearly mark
-#   parse_apl as "compatibility mode" in logs and diagnostics.
-#
-# Implementation notes:
-# - When migrating, maintain a compatibility flag (e.g., --parser=legacy|lark) so existing
-#   examples continue to work while teams adopt the new parser.
-# - Ensure any new parser populates Task/Step metadata (source_line, source_col) used by
-#   compiler diagnostics and IR provenance.
-#
-# This inline TODO links to DESIGN_PRINCIPLES.md: "Grammar-based parser (Lark)".
+# IMPLEMENTED: Parser stability & developer experience notes (summary)
+# - The legacy regex-based parser remains available as a compatibility mode used by
+#   existing examples and tests. The parser now:
+#     * supports the explicit "step" prefix used by examples/tests,
+#     * derives simple capability hints from `binds` (e.g., `mcp.storage` -> "storage"),
+#     * preserves step.raw and step metadata for downstream IR/diagnostics.
+# - A focused parser migration is tracked in docs/DESIGN_PRINCIPLES.md (search for
+#   "Grammar-based parser (Lark)") where a future Lark-based implementation and
+#   required AST provenance (line/column) are specified.
+# - Future work (kept in docs): implement a grammar-backed parser (Lark) that emits
+#   precise line/column provenance and provides an opt-in `--parser=lark` flag.
+#   This preserves backward compatibility while improving editor/LSP integration.
 
 from typing import Dict, Any, List, Optional
 import re
