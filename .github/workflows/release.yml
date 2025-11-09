@@ -1,0 +1,60 @@
+name: Release artifacts
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build sdist & wheel
+        run: |
+          python -m build --sdist --wheel -o dist
+
+      - name: Upload Python artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-artifacts
+          path: dist/*.whl
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+      - name: Build Docker image (local)
+        run: |
+          # Use the tag from the git ref (e.g. refs/tags/v1.2.3 -> v1.2.3)
+          REF=${GITHUB_REF#refs/tags/}
+          TAG=${REF:-latest}
+          docker build -t apl:${TAG} .
+          docker save apl:${TAG} -o apl_${TAG}.tar
+
+      - name: Upload Docker image tar
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: apl_*.tar
+
+  publish-placeholder:
+    runs-on: ubuntu-latest
+    needs: build-and-package
+    if: false
+    steps:
+      - name: Placeholder for publishing to PyPI / Docker registry
+        run: echo "Configure secrets.PYPI_TOKEN and secrets.DOCKER_HUB_TOKEN and enable this job."

@@ -2,7 +2,12 @@
 
 A statically-typed Domain-Specific Language (DSL) for agent engineering that compiles (or transpiles) to Python.
 
-APL is an open agent-focused programming language that targets the Python ecosystem. The project aims to design, specify, and ship a production-ready language stack—grammar, type system, compiler, runtime, tooling—that lets teams express autonomous agent behavior as audited, testable code and deploy it consistently across laptops, containers, and cloud platforms. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts.
+APL is a lightweight, AI-native agent programming language that heavily abstracts agentic development so intent can be expressed once and re-used everywhere. Its mission is to provide a simple surface that AI systems, human operators, and non-developers can all read, reproduce, and test with confidence. In addition to emitting Python, the compiler targets major agent orchestration frameworks-LangChain, LlamaIndex, crewAI, AutoGen, LangGraph-and integrates with MCP servers to keep agent code portable across runtimes.
+
+## Key capabilities
+- Turn natural or pseudo-code agent descriptions into validated APL source via AI-assisted parsing guided by the language specification, then compile the result to Python either standalone or aligned with major agent frameworks.
+
+The project aims to design, specify, and ship a production-ready language stack-grammar, type system, compiler, runtime, tooling-that lets teams express autonomous agent behavior as audited, testable code and deploy it consistently across laptops, containers, and cloud platforms. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts. The core principle guiding APL is that agents themselves should be able to understand and verify their source; the language exists primarily for AI and AI agents, while remaining approachable for teams without deep software engineering backgrounds.
 
 ## Goals
 - Define a Python-aligned agent programming language with formal grammar, static capability typing, and deterministic semantics.

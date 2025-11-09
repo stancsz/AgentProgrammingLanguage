@@ -1,21 +1,48 @@
-"""IR serializers for APL programs."""
+"""IR serializers for APL programs with deterministic IDs and provenance."""
 
 from __future__ import annotations
 
-import uuid
-from typing import Any, Dict
+import hashlib
+import json
+from typing import Any, Dict, List
 
 from .ast import Program
 
+# Keep a stable generator identifier in sync with setup.py version
+_GENERATOR = "apl/0.1.0"
+_SCHEMA_VERSION = "1.0"
+
+
+def _deterministic_node_id(program_name: str, task_name: str, index: int, step_source: str) -> str:
+    """Create a stable node id from program/task/index/source and generator."""
+    m = hashlib.sha256()
+    m.update(_GENERATOR.encode("utf-8"))
+    m.update(b"|")
+    m.update(program_name.encode("utf-8"))
+    m.update(b"|")
+    m.update(task_name.encode("utf-8"))
+    m.update(b"|")
+    m.update(str(index).encode("utf-8"))
+    m.update(b"|")
+    m.update(step_source.encode("utf-8"))
+    return m.hexdigest()
+
+
+def _compute_ir_hash(payload: Dict[str, Any]) -> str:
+    """Compute a deterministic hash for the IR payload."""
+    normalized = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
 
 def to_langgraph_ir(program: Program) -> Dict[str, Any]:
-    """Serialize to a LangGraph-inspired JSON structure (prototype)."""
-    nodes = []
-    edges = []
-    for task in program.tasks:
-        prev_id = None
-        for step in task.steps:
-            node_id = str(uuid.uuid4())
+    """Serialize to a LangGraph-inspired JSON structure (deterministic where possible)."""
+    nodes: List[Dict[str, Any]] = []
+    edges: List[List[str]] = []
+
+    for t_idx, task in enumerate(program.tasks):
+        prev_id: str | None = None
+        for s_idx, step in enumerate(task.steps):
+            node_id = _deterministic_node_id(program.name, task.name, s_idx, step.raw)
             nodes.append(
                 {
                     "id": node_id,
@@ -30,10 +57,17 @@ def to_langgraph_ir(program: Program) -> Dict[str, Any]:
             if prev_id:
                 edges.append([prev_id, node_id])
             prev_id = node_id
-    return {
+
+    payload = {
         "program": program.name,
         "meta": program.meta,
+        "generator": _GENERATOR,
+        "schema_version": _SCHEMA_VERSION,
         "nodes": nodes,
         "edges": edges,
     }
 
+    # attach an IR-level hash for provenance/audit
+    payload["ir_hash"] = _compute_ir_hash({"nodes": payload["nodes"], "edges": payload["edges"], "generator": payload["generator"]})
+
+    return payload

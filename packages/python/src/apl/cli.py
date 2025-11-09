@@ -65,6 +65,61 @@ def _cmd_export_n8n(path: Path, runtime_url: str | None, out: Path | None) -> No
     else:
         print(payload)
 
+def _cmd_repl(path: Path | None) -> None:
+    """
+    Minimal REPL for iterating on APL programs.
+
+    Usage:
+      apl repl                # start empty REPL
+      apl repl examples/foo.apl
+    Commands:
+      run            - execute the loaded program (full run)
+      exit, quit     - exit REPL
+      help           - show this help
+    """
+    program = None
+    if path:
+        try:
+            program = _load_program(path)
+            print(f"Loaded program: {program.name}")
+        except Exception as e:
+            print(f"Failed to load program: {e}")
+            program = None
+
+    runtime = Runtime()
+
+    print("APL REPL - type 'help' for commands, 'exit' to quit.")
+    while True:
+        try:
+            line = input("apl> ").strip()
+        except EOFError:
+            print()
+            break
+        except KeyboardInterrupt:
+            print()
+            break
+
+        if not line:
+            continue
+        if line in ("exit", "quit"):
+            break
+        if line == "help":
+            print("Commands: run, help, exit")
+            continue
+
+        if line == "run":
+            if program is None:
+                print("No program loaded. Provide a file path to 'apl repl <file>' to load a program.")
+                continue
+            try:
+                result = runtime.execute_program(program)
+                print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"Execution error: {e}")
+            continue
+
+        print("Unknown command. Type 'help' for assistance.")
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="apl", description="Agent Programming Language CLI")
@@ -84,6 +139,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_comp.add_argument("file", type=Path)
     p_comp.add_argument("--python-out", type=Path, help="Path to write compiled Python module")
     p_comp.add_argument("--ir-out", type=Path, help="Path to write IR JSON")
+
+    p_repl = sub.add_parser("repl", help="Start a minimal interactive REPL optionally loading a program")
+    p_repl.add_argument("file", type=Path, nargs="?", help="Optional APL file to load")
 
     p_n8n = sub.add_parser("export-n8n", help="Generate an n8n workflow JSON from annotated tasks")
     p_n8n.add_argument("file", type=Path)
@@ -106,6 +164,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _cmd_run(args.file, allow_storage=args.allow_storage)
     elif args.command == "compile":
         _cmd_compile(args.file, python_out=args.python_out, ir_out=args.ir_out)
+    elif args.command == "repl":
+        _cmd_repl(getattr(args, "file", None))
     elif args.command == "export-n8n":
         _cmd_export_n8n(args.file, runtime_url=getattr(args, "runtime_url", None), out=getattr(args, "out", None))
     else:
