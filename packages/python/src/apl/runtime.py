@@ -39,8 +39,18 @@ class Runtime:
     # Execution helpers
     # --------------------------------------------------------------------- #
     def _eval_expr(self, expr: str) -> Any:
-        """Evaluate expressions in a constrained environment (prototype only)."""
+        """Evaluate expressions in a constrained environment (prototype only).
+
+        TODO: SECURITY IMPROVEMENT
+        - Replace this eval-based implementation with an AST-validated evaluator.
+        - Whitelist safe AST node types (e.g. Expression, BoolOp, BinOp, Compare, Name, Load,
+          Constant, Subscript, Index) and a small set of safe builtins (len, min, max, sum).
+        - Deny attribute access, imports, comprehensions, and arbitrary function calls.
+        - Provide clear errors that guide users to safe alternatives.
+        This TODO is high-priority for safe production launches.
+        """
         try:
+            # TODO: temporary prototype behavior — implement AST-safe evaluation here.
             return eval(expr, {"__builtins__": {}}, dict(self.vars))
         except Exception as exc:  # pragma: no cover - provide better error later
             raise RuntimeError(f"Expression eval error in '{expr}': {exc}") from exc
@@ -48,8 +58,14 @@ class Runtime:
     def _eval_kwargs(self, args: str) -> Dict[str, Any]:
         if not args:
             return {}
+        # TODO: SECURITY IMPROVEMENT
+        # - Avoid using eval() to parse kwargs. Instead, parse the argument string with a
+        #   safe parser (e.g. using ast.parse in 'eval' mode and a constrained AST walker)
+        #   or implement a simple key=value parser that handles quoted strings and literals.
+        # - Ensure resolve_env_value is only called on validated scalar types.
         try:
             safe_globals = {"__builtins__": {}, "dict": dict}
+            # TODO: replace this eval-based parsing with a safe alternative.
             raw = dict(eval(f"dict({args})", safe_globals, dict(self.vars)))
         except Exception as exc:  # pragma: no cover - de-risked by unit tests later
             raise RuntimeError(f"Failed to parse kwargs for '{args}': {exc}") from exc
@@ -88,6 +104,12 @@ class Runtime:
             return self.llm.call(prompt)
 
         if action == "store":
+            # TODO: CAPABILITY ENFORCEMENT
+            # - Centralize capability checks: verify program-declared capabilities (e.g. storage)
+            #   and ToolProxy-provided capability manifests before performing side-effects.
+            # - Emit structured audit logs when storage is used (path, requesting task, metadata).
+            # - Consider returning a deterministic sentinel or storage metadata instead of
+            #   a simple "stored" string in production builds.
             if not self.allow_storage:
                 raise RuntimeError("Storage capability not enabled for runtime.")
             return "stored"

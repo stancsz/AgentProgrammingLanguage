@@ -17,6 +17,23 @@ Note: This is a permissive, development-focused parser to enable examples and te
 Replace with a full parser (lark/ANTLR) for production.
 """
 
+# TODO: PARSER STABILITY & DX (high priority)
+# - Replace this regex-based parser with a grammar-backed parser (e.g., Lark) to:
+#   * produce an AST with (line, column) metadata for each node (tasks/steps/expressions),
+#   * provide precise, actionable parse errors (line/col) for users,
+#   * enable IDE integrations (LSP) and deterministic IR generation.
+# - Add a focused parser test-suite covering ambiguous cases, edge-cases, and invalid input.
+# - Keep this module as a compatibility/fallback mode during migration; clearly mark
+#   parse_apl as "compatibility mode" in logs and diagnostics.
+#
+# Implementation notes:
+# - When migrating, maintain a compatibility flag (e.g., --parser=legacy|lark) so existing
+#   examples continue to work while teams adopt the new parser.
+# - Ensure any new parser populates Task/Step metadata (source_line, source_col) used by
+#   compiler diagnostics and IR provenance.
+#
+# This inline TODO links to DESIGN_PRINCIPLES.md: "Grammar-based parser (Lark)".
+
 from typing import Dict, Any, List, Optional
 import re
 

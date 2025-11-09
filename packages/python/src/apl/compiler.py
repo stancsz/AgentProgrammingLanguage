@@ -10,6 +10,18 @@ from typing import Optional
 from .ast import Program, Task, Step
 from .ir import to_langgraph_ir
 
+# TODO: IR SCHEMA VALIDATION & DIAGNOSTICS
+# - Validate the IR produced by to_langgraph_ir() against a canonical schema (JSON Schema or pydantic model)
+#   before writing files. Fail fast with clear diagnostics indicating which fields are invalid.
+# - Emit ir_version and ir_hash in compiled artifacts and surface schema validation warnings/errors in the CLI.
+# - Consider adding a --strict flag to the compile command to enforce schema validation in CI/release builds.
+# - Implement unit tests that assert invalid IR payloads are rejected and that provenance (ir_hash) is stable.
+#
+# Notes:
+# - This TODO aligns with DESIGN_PRINCIPLES.md ("IR schema & validation") and should be implemented
+#   as part of the recommended IR pydantic models PR.
+# - Place validation logic near write_compiled_artifacts so the compile pipeline can stop on schema drift.
+
 
 def _format_step(step: Step) -> str:
     return (

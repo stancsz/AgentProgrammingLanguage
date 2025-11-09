@@ -8,6 +8,16 @@ from typing import Any, Dict, List
 
 from .ast import Program
 
+# TODO: IR SCHEMA & PROVENANCE VALIDATION
+# - Define a JSON Schema or pydantic models describing the IR payload structure
+#   (program, meta, generator, schema_version, nodes, edges, ir_hash).
+# - Validate the IR in to_langgraph_ir() and in the CLI compile step to fail fast on
+#   schema drift. Emit clear diagnostic messages showing which field(s) are invalid.
+# - Consider publishing the schema as docs/apl-spec/ir-schema.json and reusing it
+#   in CI for schema validation tests.
+# - Ensure ir_hash covers canonicalized nodes+edges+generator and document the
+#   provenance rules in DESIGN_PRINCIPLES.md and README.md.
+
 # Keep a stable generator identifier in sync with setup.py version
 _GENERATOR = "apl/0.1.0"
 _SCHEMA_VERSION = "1.0"

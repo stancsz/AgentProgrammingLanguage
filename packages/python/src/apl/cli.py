@@ -14,6 +14,16 @@ from .ir import to_langgraph_ir
 from .compiler import write_compiled_artifacts
 from .n8n import to_n8n_workflow
 
+# TODO: CLI-LEVEL VALIDATION & SAFETY HOOKS
+# - Validate IR against canonical schema before emitting or writing artifacts when running `compile` or `translate`.
+# - Enforce capability checks at CLI: reject `run` unless the program declares required capabilities or the caller
+#   explicitly passes runtime flags (e.g., --allow-storage) and documents the security implication.
+# - Add a --strict flag to `compile`/`translate` that fails on warnings (useful for CI).
+# - Surface actionable diagnostics: file, task, step, and suggested remediation (e.g., "add capability.storage to program header").
+# - Integrate a preflight security check that can be disabled with an explicit opt-in (useful for local dev).
+# - Wire schema validation and capability enforcement into _cmd_compile/_cmd_run/_cmd_translate to fail fast.
+# - This inline TODO links to DESIGN_PRINCIPLES.md: "Immediate priorities" (Safe evaluator, IR schema, Capability model).
+
 
 def _load_program(path: Path):
     text = path.read_text(encoding="utf-8")
