@@ -13,16 +13,7 @@ from .runtime import Runtime
 from .ir import to_langgraph_ir
 from .compiler import write_compiled_artifacts
 from .n8n import to_n8n_workflow
-
-# TODO: CLI-LEVEL VALIDATION & SAFETY HOOKS
-# - Validate IR against canonical schema before emitting or writing artifacts when running `compile` or `translate`.
-# - Enforce capability checks at CLI: reject `run` unless the program declares required capabilities or the caller
-#   explicitly passes runtime flags (e.g., --allow-storage) and documents the security implication.
-# - Add a --strict flag to `compile`/`translate` that fails on warnings (useful for CI).
-# - Surface actionable diagnostics: file, task, step, and suggested remediation (e.g., "add capability.storage to program header").
-# - Integrate a preflight security check that can be disabled with an explicit opt-in (useful for local dev).
-# - Wire schema validation and capability enforcement into _cmd_compile/_cmd_run/_cmd_translate to fail fast.
-# - This inline TODO links to DESIGN_PRINCIPLES.md: "Immediate priorities" (Safe evaluator, IR schema, Capability model).
+from .ir import _validate_ir, to_langgraph_ir
 
 
 def _load_program(path: Path):
@@ -47,22 +38,66 @@ def _cmd_validate(path: Path) -> None:
     print(json.dumps(summary, indent=2))
 
 
-def _cmd_translate(path: Path) -> None:
+def _cmd_translate(path: Path, strict: bool = False) -> None:
     program = _load_program(path)
-    print(json.dumps(to_langgraph_ir(program), indent=2))
+    payload = to_langgraph_ir(program)
+    # validate IR before emitting to surface schema issues early
+    try:
+        _validate_ir(payload)
+    except Exception as e:
+        if strict:
+            raise SystemExit(f"IR validation failed: {e}")
+        else:
+            print(f"IR validation warning: {e}")
+    print(json.dumps(payload, indent=2))
 
 
-def _cmd_run(path: Path, allow_storage: bool) -> None:
+def _cmd_run(path: Path, allow_storage: bool, strict: bool = False) -> None:
     program = _load_program(path)
+
+    # CLI preflight: ensure declared capabilities match step requirements.
+    agents_meta = program.meta.get("agents", {})
+    missing = []
+    for task in program.tasks:
+        # task names are typically "agent.fn"; fall back safely
+        agent_name = task.name.split(".", 1)[0] if "." in task.name else None
+        declared_caps = []
+        if agent_name and agent_name in agents_meta:
+            declared_caps = agents_meta[agent_name].get("capabilities", [])
+        for step in task.steps:
+            for req in step.requires:
+                # allow runtime override for storage capability via --allow-storage
+                if req == "storage" and allow_storage:
+                    continue
+                if req not in declared_caps:
+                    missing.append((task.name, step.raw, req))
+    if missing:
+        msg_lines = [f"Missing required capability '{req}' for task '{task_name}' at step: {raw}" for task_name, raw, req in missing]
+        full = "\n".join(msg_lines)
+        if strict:
+            raise SystemExit(f"Preflight capability check failed:\n{full}")
+        else:
+            print(f"Preflight capability warnings:\n{full}")
+
     runtime = Runtime(allow_storage=allow_storage)
     result = runtime.execute_program(program)
     print(json.dumps(result, indent=2))
 
 
-def _cmd_compile(path: Path, python_out: Path | None, ir_out: Path | None) -> None:
+def _cmd_compile(path: Path, python_out: Path | None, ir_out: Path | None, strict: bool = False) -> None:
     program = _load_program(path)
     if not python_out and not ir_out:
         raise SystemExit("compile requires at least one of --python-out or --ir-out")
+    # validate IR early to provide clearer compile-time diagnostics
+    if ir_out:
+        payload = to_langgraph_ir(program)
+        try:
+            _validate_ir(payload)
+        except Exception as e:
+            if strict:
+                raise SystemExit(f"IR validation failed during compile: {e}")
+            else:
+                print(f"IR validation warning during compile: {e}")
     write_compiled_artifacts(program, python_out=python_out, ir_path=ir_out)
 
 
@@ -140,15 +175,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_trans = sub.add_parser("translate", help="Emit LangGraph-like IR")
     p_trans.add_argument("file", type=Path)
+    p_trans.add_argument("--strict", action="store_true", help="Fail on IR validation warnings")
 
     p_run = sub.add_parser("run", help="Execute the program with the reference runtime")
     p_run.add_argument("file", type=Path)
     p_run.add_argument("--allow-storage", action="store_true", help="Enable storage capability during execution")
+    p_run.add_argument("--strict", action="store_true", help="Treat preflight warnings as errors")
 
     p_comp = sub.add_parser("compile", help="Compile program to artifacts (Python module / IR)")
     p_comp.add_argument("file", type=Path)
     p_comp.add_argument("--python-out", type=Path, help="Path to write compiled Python module")
     p_comp.add_argument("--ir-out", type=Path, help="Path to write IR JSON")
+    p_comp.add_argument("--strict", action="store_true", help="Fail the compile if IR validation reports problems")
 
     p_repl = sub.add_parser("repl", help="Start a minimal interactive REPL optionally loading a program")
     p_repl.add_argument("file", type=Path, nargs="?", help="Optional APL file to load")
@@ -169,11 +207,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "validate":
         _cmd_validate(args.file)
     elif args.command == "translate":
-        _cmd_translate(args.file)
+        _cmd_translate(args.file, strict=getattr(args, "strict", False))
     elif args.command == "run":
-        _cmd_run(args.file, allow_storage=args.allow_storage)
+        _cmd_run(args.file, allow_storage=args.allow_storage, strict=getattr(args, "strict", False))
     elif args.command == "compile":
-        _cmd_compile(args.file, python_out=args.python_out, ir_out=args.ir_out)
+        _cmd_compile(args.file, python_out=args.python_out, ir_out=args.ir_out, strict=getattr(args, "strict", False))
     elif args.command == "repl":
         _cmd_repl(getattr(args, "file", None))
     elif args.command == "export-n8n":

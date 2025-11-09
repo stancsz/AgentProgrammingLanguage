@@ -167,9 +167,16 @@ def parse_apl(text: str) -> Program:
                 program = Program(name=program_name, meta=program_meta)
             # register agent binds in program.meta
             agents = program.meta.get("agents", {})
+            binds_map = _parse_binds(binds)
+            # derive simple capability hints from binds (e.g., mcp.storage -> 'storage')
+            caps: List[str] = []
+            for v in binds_map.values():
+                if "storage" in v and "storage" not in caps:
+                    caps.append("storage")
             agents[agent_name] = {
                 "args": [a.strip() for a in agent_args.split(',') if a.strip()],
-                "binds": _parse_binds(binds)
+                "binds": binds_map,
+                "capabilities": caps,
             }
             program.meta["agents"] = agents
             current_agent = agent_name
@@ -177,6 +184,18 @@ def parse_apl(text: str) -> Program:
             continue
 
         # def inside agent -> becomes a Task named "<agent>.<def>"
+        # Also process capability declarations inside agent blocks when not inside a def
+        if current_agent and not current_task and s.lower().startswith("capability "):
+            cap = s.split(None, 1)[1].strip()
+            agents = program.meta.get("agents", {})
+            ag = agents.get(current_agent, {})
+            caps = ag.get("capabilities", [])
+            if cap not in caps:
+                caps.append(cap)
+            ag["capabilities"] = caps
+            agents[current_agent] = ag
+            program.meta["agents"] = agents
+            continue
         m = _def_re.match(s)
         if m and current_agent:
             def_name = m.group(1)
@@ -209,14 +228,20 @@ def parse_apl(text: str) -> Program:
 
         # inside a def/task, parse steps and assignments
         if current_task:
-            # check for explicit assignment like "x = something"
-            m = _assign_call_re.match(s)
+            # support explicit "step ..." prefix used in examples/tests
+            raw_step = s
+            step_line = s
+            if step_line.lower().startswith("step "):
+                step_line = step_line[5:].strip()
+
+            # check for explicit assignment like "x = something" (after removing optional "step " prefix)
+            m = _assign_call_re.match(step_line)
             if m:
                 left = m.group(1).strip()
                 right = m.group(2).strip()
             else:
                 left = None
-                right = s
+                right = step_line
 
             # detect requires capability on the same line
             reqs = []
@@ -232,8 +257,8 @@ def parse_apl(text: str) -> Program:
                 action = mcall.group(1)
                 args = mcall.group(2)
             else:
-                # string-literal only lines are treated as fallback prompts
-                mstr = _string_line_re.match(s)
+                # string-literal only lines are treated as fallback prompts (match against the original raw step)
+                mstr = _string_line_re.match(step_line)
                 if mstr:
                     action = "call_llm"
                     args = f'prompt="{mstr.group(1)}"'
@@ -244,7 +269,7 @@ def parse_apl(text: str) -> Program:
                     action = None
                     args = right
 
-            step = Step(raw=s, assignment=left, action=action, args=args, requires=reqs)
+            step = Step(raw=raw_step, assignment=left, action=action, args=args, requires=reqs)
             current_task.steps.append(step)
             continue
 

@@ -7,6 +7,8 @@ import json
 from typing import Any, Dict, List
 
 from .ast import Program
+from pydantic import BaseModel, Field, ValidationError
+from typing import Optional
 
 # TODO: IR SCHEMA & PROVENANCE VALIDATION
 # - Define a JSON Schema or pydantic models describing the IR payload structure
@@ -17,6 +19,34 @@ from .ast import Program
 #   in CI for schema validation tests.
 # - Ensure ir_hash covers canonicalized nodes+edges+generator and document the
 #   provenance rules in DESIGN_PRINCIPLES.md and README.md.
+#
+# Lightweight pydantic models used to validate produced IR payloads. This keeps
+# validation close to the serializer and provides clear error messages during
+# compile/translation time.
+class NodeModel(BaseModel):
+    id: str
+    task: str
+    kind: str
+    input: Optional[Any] = None
+    assignment: Optional[str] = None
+    requires: List[str] = Field(default_factory=list)
+    source: str
+
+class IRModel(BaseModel):
+    program: str
+    meta: Dict[str, Any]
+    generator: str
+    schema_version: str
+    nodes: List[NodeModel]
+    edges: List[List[str]]
+    ir_hash: Optional[str] = None
+
+def _validate_ir(payload: Dict[str, Any]) -> None:
+    """Validate IR payload against pydantic models; raise RuntimeError on failure."""
+    try:
+        IRModel.parse_obj(payload)
+    except ValidationError as exc:
+        raise RuntimeError(f"IR schema validation failed: {exc}") from exc
 
 # Keep a stable generator identifier in sync with setup.py version
 _GENERATOR = "apl/0.1.0"

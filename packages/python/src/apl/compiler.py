@@ -8,19 +8,7 @@ from textwrap import indent
 from typing import Optional
 
 from .ast import Program, Task, Step
-from .ir import to_langgraph_ir
-
-# TODO: IR SCHEMA VALIDATION & DIAGNOSTICS
-# - Validate the IR produced by to_langgraph_ir() against a canonical schema (JSON Schema or pydantic model)
-#   before writing files. Fail fast with clear diagnostics indicating which fields are invalid.
-# - Emit ir_version and ir_hash in compiled artifacts and surface schema validation warnings/errors in the CLI.
-# - Consider adding a --strict flag to the compile command to enforce schema validation in CI/release builds.
-# - Implement unit tests that assert invalid IR payloads are rejected and that provenance (ir_hash) is stable.
-#
-# Notes:
-# - This TODO aligns with DESIGN_PRINCIPLES.md ("IR schema & validation") and should be implemented
-#   as part of the recommended IR pydantic models PR.
-# - Place validation logic near write_compiled_artifacts so the compile pipeline can stop on schema drift.
+from .ir import to_langgraph_ir, _validate_ir
 
 
 def _format_step(step: Step) -> str:
@@ -75,11 +63,25 @@ def write_compiled_artifacts(
     program: Program,
     python_out: Optional[Path] = None,
     ir_path: Optional[Path] = None,
+    python_path: Optional[Path] = None,
 ) -> None:
-    """Write compiled artifacts (Python module, IR JSON) to the filesystem."""
+    """Write compiled artifacts (Python module, IR JSON) to the filesystem.
+
+    Backwards-compatible parameter aliases:
+    - python_path is accepted as an alias for python_out to match older tests.
+    This function validates the produced IR against the canonical pydantic model
+    and fails fast if validation errors are detected.
+    """
+    # support legacy alias used by tests
+    if python_path and not python_out:
+        python_out = python_path
+
     if python_out:
         python_out.parent.mkdir(parents=True, exist_ok=True)
         python_out.write_text(compile_to_python_module(program), encoding="utf-8")
     if ir_path:
         ir_path.parent.mkdir(parents=True, exist_ok=True)
-        ir_path.write_text(json.dumps(to_langgraph_ir(program), indent=2), encoding="utf-8")
+        payload = to_langgraph_ir(program)
+        # validate IR schema before writing to disk
+        _validate_ir(payload)
+        ir_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
