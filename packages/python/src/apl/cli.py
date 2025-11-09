@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Sequence
 
+from .env import load_env_defaults
 from .parser import parse_apl
 from .runtime import Runtime
 from .ir import to_langgraph_ir
@@ -93,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    load_env_defaults()
     parser = build_parser()
     args = parser.parse_args(argv)
 

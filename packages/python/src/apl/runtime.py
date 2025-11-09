@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from .ast import Program, Step
+from .env import load_env_defaults, resolve_env_value
+from .integrations.slack import post_message as slack_post_message
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .n8n import N8NClient
@@ -27,6 +30,7 @@ class Runtime:
     """Reference runtime that interprets an APL Program."""
 
     def __init__(self, llm: Optional[MockLLM] = None, allow_storage: bool = False, n8n_client: Optional["N8NClient"] = None):
+        load_env_defaults()
         self.llm = llm or MockLLM()
         self.allow_storage = allow_storage
         self.n8n_client = n8n_client
@@ -46,9 +50,11 @@ class Runtime:
         if not args:
             return {}
         try:
-            return dict(eval(f"dict({args})", {"__builtins__": {}}, dict(self.vars)))
+            safe_globals = {"__builtins__": {}, "dict": dict}
+            raw = dict(eval(f"dict({args})", safe_globals, dict(self.vars)))
         except Exception as exc:  # pragma: no cover - de-risked by unit tests later
             raise RuntimeError(f"Failed to parse kwargs for '{args}': {exc}") from exc
+        return {key: resolve_env_value(value) for key, value in raw.items()}
 
     def execute_program(self, program: Program) -> Dict[str, Any]:
         """Execute a program and return the final variable snapshot per task."""
@@ -110,6 +116,12 @@ class Runtime:
                 payload = kwargs.get("payload") or {}
                 return self.n8n_client.call_workflow(workflow_id, payload=payload)
             raise RuntimeError(f"Unsupported n8n sub-action '{sub_action}'.")
+
+        if action.startswith("slack."):
+            kwargs = self._eval_kwargs(step.args or "")
+            if action == "slack.post":
+                return slack_post_message(kwargs)
+            raise RuntimeError(f"Unsupported Slack action '{action}'.")
 
         if action and "." in action:
             # Treat dotted calls (e.g., news.search) as JSON-friendly log output

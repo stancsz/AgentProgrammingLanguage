@@ -161,6 +161,7 @@ pip install -e .[dev]
 - `examples/lead_qualification.apl` — Lead scoring and sales notification.
 - `examples/knowledge_curator.apl` — Search synthesis to feed internal KBs.
 - `examples/slack_support/runner.py` — FastAPI runner that exposes the Slack support agent.
+- `examples/slack_support/test_post_message.apl` — Minimal program that posts a Slack message via `apl run`.
 
 ## n8n integration (experimental)
 - Annotate agent entrypoints with inline comments to describe how they should surface inside n8n:
@@ -190,6 +191,8 @@ pip install -e .[dev]
   2. Install extras: `pip install -e .[dev] fastapi uvicorn[standard]`.\
   3. Run `uvicorn examples.slack_support.runner:app --host 0.0.0.0 --port 8000`.\
   4. Configure the n8n HTTP Request node to call `http://localhost:8000/agents/slack-support` with header `Authorization: Bearer <same-token>` while its Slack node posts the formatted reply.
+- Verify Slack connectivity quickly with\
+  `python -m apl run examples/slack_support/test_post_message.apl` (reads credentials from `.env`).
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.
