@@ -2,7 +2,110 @@
 
 A statically-typed Domain-Specific Language (DSL) for agent engineering that compiles (or transpiles) to Python.
 
-APL is a lightweight, AI-native agent programming language that heavily abstracts agentic development so intent can be expressed once and re-used everywhere. Its mission is to provide a simple surface that AI systems, human operators, and non-developers can all read, reproduce, and test with confidence. In addition to emitting Python, the compiler targets major agent orchestration frameworks-LangChain, LlamaIndex, crewAI, AutoGen, LangGraph-and integrates with MCP servers to keep agent code portable across runtimes.
+APL is a lightweight, AI-native agent programming language that heavily abstracts agentic development so intent can be expressed once and re-used everywhere. Its mission is to provide a simple surface that AI systems, human operators, and non-developers can all read, reproduce, and test with confidence.
+
+Quick demo — pseudo → APL → compile → framework adapter
+```text
+# 1) Pseudo-spec
+"Greet a user by name using an LLM prompt; must declare LLM capability."
+```
+
+```apl
+# 2) APL source (examples/greeter.apl)
+program greeter_demo(version="0.1")
+
+agent greeter binds mcp.openai as llm:
+  capability call_llm
+
+  def greet(name):
+    step prompt = "Say hello to {{name}} and ask how their day is."
+    step resp = call_llm(model="gpt-4", prompt=prompt) requires capability.call_llm
+    return resp
+end
+```
+
+```bash
+# 3) Compile to Python + IR (reference compiler)
+python -m apl compile examples/greeter.apl --python-out dist/greeter.py --ir-out dist/greeter.json
+```
+
+```python
+# 4) Conceptual adapter: map IR node -> LangChain prompt/chain
+# (dist/greeter.py or dist/greeter.json are the compiled artifacts)
+from langchain import PromptTemplate, LLMChain
+from langchain.llms import OpenAI
+import json
+
+ir = json.load(open("dist/greeter.json"))
+# find call_llm node and build a PromptTemplate/LLMChain
+call_node = next(n for n in ir["nodes"] if n["kind"] == "call_llm")
+prompt = PromptTemplate(template=call_node["input"], input_variables=["name"])
+llm = OpenAI(model_name="gpt-4")
+chain = LLMChain(llm=llm, prompt=prompt)
+out = chain.run(name="Ava")
+print(out)
+```
+
+Notes
+- The IR produced by APL (dist/greeter.json) is portable and contains capability manifests and an `ir_hash` so framework adapters can verify artifacts before execution.
+- Keep python-escape hatches gated by explicit capabilities so framework translations remain auditable and safe.
+
+## From pseudo-code to APL to frameworks
+
+Below is a compact example showing how you can take a plain English/pseudo specification, author a small APL file, and compile it to artifacts that integrate with frameworks like LangChain or AutoGen.
+
+1) Pseudo-spec (human/AI-friendly)
+```text
+Create an agent that greets a user by name using an LLM prompt.
+It must declare the capability to call an LLM.
+```
+
+2) APL source (save as examples/greeter.apl)
+```apl
+program greeter_demo(version="0.1")
+
+agent greeter binds mcp.openai as llm:
+  capability call_llm
+
+  def greet(name):
+    step prompt = "Say hello to {{name}} and ask how their day is."
+    step resp = call_llm(model="gpt-4", prompt=prompt) requires capability.call_llm
+    return resp
+end
+```
+
+3) Compile to Python + IR (reference compiler)
+```bash
+python -m apl compile examples/greeter.apl --python-out dist/greeter.py --ir-out dist/greeter.json
+```
+
+4) Use the compiled artifact with LangChain (conceptual)
+```python
+# python
+# dist/greeter.py is a generated runtime module exposing `run()` or task functions
+from importlib import import_module
+mod = import_module("dist.greeter")  # or load by path using importlib.util
+# The compiled module can expose a small adapter that accepts a runtime LLM
+# and executes the compiled graph deterministically.
+result = mod.run()  # runtime wiring (LLM credentials, MCP bindings) happens via runtime config
+print(result)
+```
+
+5) Integrate the IR with other orchestrators (AutoGen / LangGraph / custom)
+```python
+# python
+import json
+ir = json.load(open("dist/greeter.json"))
+# The IR is a portable, deterministic representation of nodes/edges/capabilities.
+# A small adapter can translate IR nodes to framework primitives:
+# - LangChain: create PromptTemplate/LLMChain nodes per `call_llm` node.
+# - AutoGen: map nodes to agent tasks and wire the LLM client as the "tool".
+# - Custom orchestrator: translate nodes to workflow nodes (HTTP, queue, or function calls).
+```
+
+Notes
+- The generated IR contains capability manifests and an `ir_hash` (provenance) so framework adapters can verify artifacts before executing them.
+- Keep escape hatches (python: blocks) gated by explicit capabilities so framework translations remain auditable and safe.
 
 ## Key capabilities
 - Turn natural or pseudo-code agent descriptions into validated APL source via AI-assisted parsing guided by the language specification, then compile the result to Python either standalone or aligned with major agent frameworks.
