@@ -2,265 +2,89 @@
 
 A statically-typed Domain-Specific Language (DSL) for agent engineering that compiles (or transpiles) to Python.
 
-APL is a lightweight, AI-native agent programming language that heavily abstracts agentic development so intent can be expressed once and re-used everywhere. Its mission is to provide a simple surface that AI systems, human operators, and non-developers can all read, reproduce, and test with confidence.
+APL is a lightweight, AI-native agent programming language that lets intent be expressed once and re-used across runtimes. It provides a simple surface that AI systems, human operators, and non-developers can read, reproduce, and test. The compiler emits Python and a portable IR and can target orchestration frameworks (LangChain, LlamaIndex, AutoGen, LangGraph) and integrate MCP tool adapters to keep agent code portable.
 
-Quick demo — pseudo → APL → compile → framework adapter
+## Example — Customer support: pseudo → APL → compile → framework adapter
+
+This project uses a single focused example to demonstrate the end-to-end flow: from pseudo-spec to APL source, compile to Python + IR, and a conceptual framework adapter mapping. The example lives at examples/customer_support.apl and matches the APL shown below.
+
+1) Pseudo-spec (customer support)
 ```text
-# 1) Pseudo-spec
-"Greet a user by name using an LLM prompt; must declare LLM capability."
+Customer: "My billing page shows an error and my invoice is missing."
+Goal: create a service-desk ticket, attach account data, schedule a follow-up with an account manager, and reply to the customer.
+Requirements: use MCP service-desk and CRM tools; declare network and storage capabilities.
 ```
 
+2) APL source (examples/customer_support.apl)
 ```apl
-# 2) APL source (examples/greeter.apl)
-program greeter_demo(version="0.1")
+program customer_support_demo(version="0.1")
 
-agent greeter binds mcp.openai as llm:
+agent support_agent binds mcp.servicedesk as sd, mcp.crm as crm:
+  capability network
+  capability storage
   capability call_llm
 
-  def greet(name):
-    step prompt = "Say hello to {{name}} and ask how their day is."
-    step resp = call_llm(model="gpt-4", prompt=prompt) requires capability.call_llm
-    return resp
-end
-```
-
-```bash
-# 3) Compile to Python + IR (reference compiler)
-python -m apl compile examples/greeter.apl --python-out dist/greeter.py --ir-out dist/greeter.json
-```
-
-```python
-# 4) Conceptual adapter: map IR node -> LangChain prompt/chain
-# (dist/greeter.py or dist/greeter.json are the compiled artifacts)
-from langchain import PromptTemplate, LLMChain
-from langchain.llms import OpenAI
-import json
-
-ir = json.load(open("dist/greeter.json"))
-# find call_llm node and build a PromptTemplate/LLMChain
-call_node = next(n for n in ir["nodes"] if n["kind"] == "call_llm")
-prompt = PromptTemplate(template=call_node["input"], input_variables=["name"])
-llm = OpenAI(model_name="gpt-4")
-chain = LLMChain(llm=llm, prompt=prompt)
-out = chain.run(name="Ava")
-print(out)
-```
-
-Notes
-- The IR produced by APL (dist/greeter.json) is portable and contains capability manifests and an `ir_hash` so framework adapters can verify artifacts before execution.
-- Keep python-escape hatches gated by explicit capabilities so framework translations remain auditable and safe.
-
-## From pseudo-code to APL to frameworks
-
-Below is a compact example showing how you can take a plain English/pseudo specification, author a small APL file, and compile it to artifacts that integrate with frameworks like LangChain or AutoGen.
-
-1) Pseudo-spec (human/AI-friendly)
-```text
-Create an agent that greets a user by name using an LLM prompt.
-It must declare the capability to call an LLM.
-```
-
-2) APL source (save as examples/greeter.apl)
-```apl
-program greeter_demo(version="0.1")
-
-agent greeter binds mcp.openai as llm:
-  capability call_llm
-
-  def greet(name):
-    step prompt = "Say hello to {{name}} and ask how their day is."
-    step resp = call_llm(model="gpt-4", prompt=prompt) requires capability.call_llm
-    return resp
+  def handle_request(customer_id, message):
+    precondition: message != ""
+    step account = crm.get_account(id=customer_id) requires capability.network
+    step ticket = sd.create_ticket(
+      title="Support request from {{account.name}}",
+      body=message,
+      customer_id=customer_id
+    ) requires capability.network
+    step store_result = store("local://tickets/{{ticket.id}}.txt", "Ticket created: {{ticket.id}}") requires capability.storage
+    step am = crm.assign_account_manager(account_id=account.id) requires capability.network
+    step followup_date = crm.schedule_followup(account_id=account.id, days=3) requires capability.network
+    step prompt = "Draft a friendly reply to the customer summarizing the ticket {{ticket.id}} and scheduled follow-up on {{followup_date}}."
+    step reply = call_llm(model="gpt-5-mini", prompt=prompt) requires capability.call_llm
+    return { "ticket_id": ticket.id, "reply": reply, "followup_date": followup_date, "assigned_manager": am }
 end
 ```
 
 3) Compile to Python + IR (reference compiler)
 ```bash
-python -m apl compile examples/greeter.apl --python-out dist/greeter.py --ir-out dist/greeter.json
+python -m apl compile examples/customer_support.apl --python-out dist/customer_support.py --ir-out dist/customer_support.json
 ```
 
-4) Use the compiled artifact with LangChain (conceptual)
+4) Conceptual LangChain adapter (minimal)
 ```python
-# python
-# dist/greeter.py is a generated runtime module exposing `run()` or task functions
-from importlib import import_module
-mod = import_module("dist.greeter")  # or load by path using importlib.util
-# The compiled module can expose a small adapter that accepts a runtime LLM
-# and executes the compiled graph deterministically.
-result = mod.run()  # runtime wiring (LLM credentials, MCP bindings) happens via runtime config
-print(result)
-```
-
-5) Integrate the IR with other orchestrators (AutoGen / LangGraph / custom)
-```python
-# python
+# conceptual mapping: IR -> PromptTemplate / LLMChain
 import json
-ir = json.load(open("dist/greeter.json"))
-# The IR is a portable, deterministic representation of nodes/edges/capabilities.
-# A small adapter can translate IR nodes to framework primitives:
-# - LangChain: create PromptTemplate/LLMChain nodes per `call_llm` node.
-# - AutoGen: map nodes to agent tasks and wire the LLM client as the "tool".
-# - Custom orchestrator: translate nodes to workflow nodes (HTTP, queue, or function calls).
+from langchain import PromptTemplate, LLMChain
+from langchain.llms import OpenAI
+
+ir = json.load(open("dist/customer_support.json"))
+# pick call_llm nodes and construct prompt templates
+llm_nodes = [n for n in ir["nodes"] if n["kind"] == "call_llm"]
+for node in llm_nodes:
+    template = node["input"]            # APL uses {{var}} templating
+    prompt = PromptTemplate(template=template, input_variables=["followup_date"])
+    llm = OpenAI(model_name="gpt-5-mini")
+    chain = LLMChain(llm=llm, prompt=prompt)
+    out = chain.run(followup_date="2025-11-12")
+    print(out)
 ```
+
+5) Adapter mapping notes (MCP/tool calls, AutoGen, LangGraph)
+- MCP tool nodes (e.g., `crm.get_account`, `sd.create_ticket`) map to framework "tools" or SDK calls. Adapters should register tool wrappers that enforce required capabilities and translate arguments.
+- Use `ir["edges"]` to wire dataflow between nodes; map node inputs/outputs to framework variables or chain inputs.
+- AutoGen mapping: translate APL tasks/subgraphs to agent/task specs and wire tool adapters as tools available to agents.
+- LangGraph: emit or translate APL IR to a LangGraph-compatible schema for visualization and orchestration.
 
 Notes
-- The generated IR contains capability manifests and an `ir_hash` (provenance) so framework adapters can verify artifacts before executing them.
-- Keep escape hatches (python: blocks) gated by explicit capabilities so framework translations remain auditable and safe.
+- The IR (dist/*.json) contains capability manifests and an `ir_hash` for provenance; adapters must validate provenance and required capabilities before execution.
+- Keep python: escape hatches gated by explicit capabilities so adapters can refuse or require manual approval.
 
 ## Key capabilities
-- Turn natural or pseudo-code agent descriptions into validated APL source via AI-assisted parsing guided by the language specification, then compile the result to Python either standalone or aligned with major agent frameworks.
-
-The project aims to design, specify, and ship a production-ready language stack-grammar, type system, compiler, runtime, tooling-that lets teams express autonomous agent behavior as audited, testable code and deploy it consistently across laptops, containers, and cloud platforms. This repository is the home for the language specification, reference compiler pipeline, Python runtime, and SDK integrations needed to turn agent research patterns into reliable software artifacts. The core principle guiding APL is that agents themselves should be able to understand and verify their source; the language exists primarily for AI and AI agents, while remaining approachable for teams without deep software engineering backgrounds.
+- Turn natural or pseudo-code agent descriptions into validated APL source and portable IR; map IR to framework artifacts to speed agentic development and reuse.
 
 ## Goals
-- Define a Python-aligned agent programming language with formal grammar, static capability typing, and deterministic semantics.
-- Deliver a reference compiler pipeline (parser, type checker, Python code generator) and runtime that make APL programs executable, observable, and safe by default.
+- Define a Python-aligned agent language with formal grammar, static capability typing, and deterministic semantics.
+- Deliver a reference compiler pipeline and runtime that make APL programs executable, observable, and safe by default.
 - Supply tooling—CLI, tests, CI workflows, documentation—that enables teams to author, validate, package, and ship production-grade agent code.
-- Make agent deployment straightforward: build once in APL and publish agents to local runtimes, containerized edge workloads, or managed clouds (AWS Lambda/ECS, GCP Cloud Run, Azure Container Apps) without rewriting business logic.
 
 ## Language foundations
-- **Python-aligned surface syntax**: APL adopts Python indentation, expressions, and type annotations so existing Python knowledge transfers. Every agent file is valid UTF-8, uses Python lexical rules, and can embed Python statements in `python:` blocks when needed.
-- **First-class agent module system**: Each `agent` declaration is compiled to a Python module object with well-defined imports, exports, and isolated capability scopes. Agents can be packaged, versioned, and distributed through standard Python tooling (wheel, pip).
-- **Static capability typing**: All side-effectful primitives carry capability/effect annotations enforced by a static checker before execution. Types are defined with Python-style hints plus agent-specific effects (`Capability[storage]`, `Tool[MCP:newsapi]`).
-- **Deterministic compilation pipeline**: Source -> lexer/parser -> typed AST -> capability-annotated IR -> Python `ast` module -> bytecode. Generated Python modules are human-readable and instrumented for replay.
-- **Runtime contracts**: Every agent function publishes contracts (input/output types, required capabilities, protocol bindings) that downstream orchestrators can inspect at runtime through reflection APIs.
-
-## Why APL now
-- Why a language (not only a package): libraries and frameworks can glue tools together, but they do not provide a single, auditable source-of-truth for agent intent, effects, and capabilities. A language lets you express contracts, capability requirements, and inter-agent protocols as first-class, statically-checkable constructs. That makes agents portable, reviewable, and safe by default — properties that ad-hoc packages and recipes struggle to guarantee.
-
-- Stability across surface churn: tool APIs, SDKs, and runtime services evolve rapidly. APL decouples intent (what the agent should do and what capabilities it needs) from any single runtime or SDK implementation. The compiler and runtime become a stable translation layer that adapts to changing integrations without rewriting business logic.
-
-- Static safety and observability: encoding side-effects and permissions in the language enables static checks (rejecting unauthorized storage or external calls), capability manifests, and richer runtime contracts. These guarantees are hard to achieve reliably with a loose collection of packages.
-
-- Composition and low-code agent development: APL treats agent composition, delegation, and capability bindings as language primitives. That lowers the barrier to creating and reusing agents (low-code), and it makes generated or human-written agents easier for LLMs and operator tools to understand, validate, and deploy quickly.
-
-- Faster iteration for AI-driven development: when agents are expressed as concise, typed source, AI tooling can inspect, refactor, and synthesize agents more reliably. This improves automation in testing, code generation, and deployment pipelines so new agents can be produced and verified faster than when using unstructured code + config.
-
-- Portability & integration-first design: APL compiles to a portable IR and Python artifacts that can target local runtimes, containers, or managed services. That portability, paired with formal capability manifests, makes it straightforward to adopt new runtimes or registry-based integrations (MCP/A2A) without changing agent source.
-
-Short example (intent vs implementation):
-
-```apl
-agent billing_broker binds mcp.payments as wallet:
-  capability payments.charge
-
-  def hire(invoice):
-    # intent: charge the invoice source; runtime enforces capability and binding
-    charge_result = wallet.charge(amount=invoice.total, id=invoice.id)
-    return charge_result.receipt
-```
-
-This separation (intent + capability + binding) is what a package alone cannot guarantee at compile time or in CI; a language gives you that guarantee, enabling safer, faster, and more reproducible agent development.
-
-## Compilation & runtime overview
-- Parse with a deterministic grammar (see `apl-spec/grammar.md`) producing a typed AST.
-- Run static analyses: name resolution, capability inference, effect safety, and Python interoperability checks (mypy plugin).
-- Emit both a portable IR (JSON) and a Python module (`.py` or bytecode) that shares the same semantics.
-- Execute via the reference Python runtime (`apl.runtime`), which enforces capability gates, logs traces, and provides deterministic mock adapters for testing.
-- Optional: export IR to LangGraph, CrewAI, or custom orchestrators without losing the source-of-truth agent code.
-- Package compiled agents into deployable artifacts (wheels, OCI images, serverless bundles) along with capability manifests so they can run locally or on cloud platforms that satisfy the declared runtime contracts.
-
-## Repository layout (recommended)
-- apl-spec/             - language spec & grammar (Markdown)
-- packages/python/      - Python reference runtime & CLI
-  - src/apl/
-    - __init__.py
-    - __main__.py
-    - parser.py
-    - ast.py
-    - runtime.py
-    - ir.py
-    - compiler.py
-    - cli.py
-  - tests/
-- examples/             - example .apl programs and golden outputs
-- docs/                 - user guides and tutorials
-- .github/workflows/    - CI
-- README.md
-- PRD.md
-
-## Quickstart (Windows, PowerShell / cmd)
-```bash
-# create and activate venv (cmd.exe)
-python -m venv .venv
-.venv\Scripts\activate
-
-# install APL package in editable mode with dev extras
-pip install -e .[dev]
-```
-
-## Development workflow (recommended)
-1. Write parsing tests first (pytest) describing expected AST for small APL snippets.
-2. Implement parser and lexer until tests pass.
-3. Add type/effect checker coverage, ensuring capability misuse is rejected statically.
-4. Generate Python modules and IR artifacts; validate round-trips with golden files.
-5. Run static analyses (`apl validate`, mypy plugin) and configure CI gates.
-6. Package deployable artifacts (wheels, containers, serverless bundles) and smoke-test them locally.
-
-## Quick CLI (development)
-- Validate parsed AST:\
-  `python -m apl validate examples\hello.apl`
-- Package for deployment (wheel + IR + manifest):\
-  `python -m apl compile examples\hello.apl --python-out dist/hello.py --ir-out dist/hello.json`
-- Translate to LangGraph-like JSON (or adapt the IR for other orchestrators):\
-  `python -m apl translate examples\hello.apl`
-- Generate n8n workflow JSON for annotated agents:\
-  `python -m apl export-n8n examples\hello.apl --out dist/hello-n8n.json`
-- Run in mock mode:\
-  `python -m apl run examples\hello.apl`
-
-## Next steps to implement
-- Finalize Python-compatible syntax and ensure parser compatibility.
-- Implement MCP/tool connectors, capability manager, and hardened sandbox runtime.
-- Build packaging/distribution tooling for containers and serverless targets.
-- Add type/effect checker, CI automation, and expanded documentation to support production deployment.
-- Publish SDK examples demonstrating deployment to local, container, and serverless environments.
-
-## Examples
-- `examples/hello.apl` — Introductory language tour (parsing, MCP calls, sub-agents).
-- `examples/n8n_webhook.apl` — Minimal n8n-triggered notifier agent.
-- `examples/slack_support/slack_support.apl` — Slack ticket triage with knowledge-base updates.
-- `examples/customer_support.apl` — Email/CRM escalation workflow.
-- `examples/coding_expert.apl` — Code-review assistant for GitHub PRs.
-- `examples/github_agent.apl` — Issue grooming and label suggestions.
-- `examples/incident_responder.apl` — PagerDuty + Slack incident handler.
-- `examples/release_brief.apl` — Automated release note publisher.
-- `examples/data_pipeline_monitor.apl` — Pipeline health summariser.
-- `examples/meeting_scheduler.apl` — Calendar coordination and email drafting.
-- `examples/lead_qualification.apl` — Lead scoring and sales notification.
-- `examples/knowledge_curator.apl` — Search synthesis to feed internal KBs.
-- `examples/slack_support/runner.py` — FastAPI runner that exposes the Slack support agent.
-- `examples/slack_support/test_post_message.apl` — Minimal program that posts a Slack message via `apl run`.
-
-## n8n integration (experimental)
-- Annotate agent entrypoints with inline comments to describe how they should surface inside n8n:
-
-  ```apl
-  agent notifier:
-    # n8n: trigger webhook path="/apl/notifier" method="POST"
-    def run(payload):
-      response = n8n.workflow(workflow_id="slack-notify", payload=payload)
-      return response
-  ```
-
-- Run `python -m apl export-n8n your_agent.apl --out dist/workflow.json` to emit an n8n workflow definition pairing each trigger with an HTTP Request node that calls back into the APL runtime (override the target with `--runtime-url`).
-- Initialise `apl.runtime.Runtime` with an `N8NClient` to reuse authenticated connectors:
-
-  ```python
-  from apl.n8n import N8NClient
-  from apl.runtime import Runtime
-
-  client = N8NClient(base_url="https://n8n.example.com", api_key="<api-key>")
-  runtime = Runtime(n8n_client=client)
-  ```
-
-- Within agent code, call `n8n.webhook(...)` or `n8n.workflow(...)` steps to delegate triggers/actions to n8n while keeping APL agents lightweight.
-- To drive agents behind HTTP endpoints:\
-  1. Copy `examples/slack_support/.env.example` to either `examples/slack_support/.env` or the repo root `.env`, then set `SLACK_SUPPORT_API_TOKEN=<random-token>`.\
-  2. Install extras: `pip install -e .[dev] fastapi uvicorn[standard]`.\
-  3. Run `uvicorn examples.slack_support.runner:app --host 0.0.0.0 --port 8000`.\
-  4. Configure the n8n HTTP Request node to call `http://localhost:8000/agents/slack-support` with header `Authorization: Bearer <same-token>` and route downstream delivery through an MCP Slack server (consult the MCP registry: https://modelcontextprotocol.io/registry or https://github.com/modelcontextprotocol/registry).
-- Provision Slack access by deploying or registering an MCP Slack server from the registry and binding it in APL (`binds mcp.slack as slack`). The runtime no longer bundles Slack credentials; authentication and delivery live with the MCP integration.
+- Python-aligned surface syntax, first-class agent module system, static capability typing, deterministic compilation pipeline, and runtime contracts.
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.

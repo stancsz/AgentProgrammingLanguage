@@ -1,10 +1,22 @@
-# Email/CRM customer support escalation agent.
+program customer_support_demo(version="0.1")
 
-agent customer_support binds mcp.email as email, mcp.crm as crm:
-  # n8n: trigger webhook path="/hooks/email/support" method="POST"
-  def escalate(message):
-    intent = call_llm(model="support", prompt="Classify support intent: {{message}}")
-    priority = call_llm(model="support", prompt="Assign priority (low/medium/high) for: {{message}}")
-    crm.create_case(intent=intent, priority=priority, description=message) requires capability.crm
-    email.send(to="support-team@example.com", subject="New support case", body=message) requires capability.email
-    return {"intent": intent, "priority": priority}
+agent support_agent binds mcp.servicedesk as sd, mcp.crm as crm:
+  capability network
+  capability storage
+  capability call_llm
+
+  def handle_request(customer_id, message):
+    precondition: message != ""
+    step account = crm.get_account(id=customer_id) requires capability.network
+    step ticket = sd.create_ticket(
+      title="Support request from {{account.name}}",
+      body=message,
+      customer_id=customer_id
+    ) requires capability.network
+    step store_result = store("local://tickets/{{ticket.id}}.txt", "Ticket created: {{ticket.id}}") requires capability.storage
+    step am = crm.assign_account_manager(account_id=account.id) requires capability.network
+    step followup_date = crm.schedule_followup(account_id=account.id, days=3) requires capability.network
+    step prompt = "Draft a friendly reply to the customer summarizing the ticket {{ticket.id}} and scheduled follow-up on {{followup_date}}."
+    step reply = call_llm(model="gpt-5-mini", prompt=prompt) requires capability.call_llm
+    return { "ticket_id": ticket.id, "reply": reply, "followup_date": followup_date, "assigned_manager": am }
+end
