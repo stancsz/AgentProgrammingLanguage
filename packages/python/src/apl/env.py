@@ -15,7 +15,6 @@ def _iter_candidate_paths() -> Iterable[Path]:
     yield cwd / ".env"
     if repo_root != cwd:
         yield repo_root / ".env"
-    yield repo_root / "examples" / "slack_support" / ".env"
 
 
 def load_env_defaults() -> None:

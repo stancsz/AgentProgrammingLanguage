@@ -2,12 +2,13 @@
 
 Quickstart:
 1. Copy `examples/slack_support/.env.example` to either `examples/slack_support/.env`
-   or the repo root `.env`, set `SLACK_SUPPORT_API_TOKEN=<random-token>`, and fill Slack credentials.
+   or the repo root `.env`, then set `SLACK_SUPPORT_API_TOKEN=<random-token>`.
 2. `pip install -e .[dev] fastapi uvicorn[standard]`
 3. `uvicorn examples.slack_support.runner:app --host 0.0.0.0 --port 8000`
 4. Configure the n8n webhook HTTP Request node to call
    `http://localhost:8000/agents/slack-support` with header
-   `Authorization: Bearer <same-token>` and Slack credential handling the post.
+   `Authorization: Bearer <same-token>`. Route any Slack delivery through an MCP server
+   sourced from the MCP registry (https://modelcontextprotocol.io/registry).
 """
 
 from __future__ import annotations

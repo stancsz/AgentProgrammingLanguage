@@ -187,12 +187,11 @@ pip install -e .[dev]
 
 - Within agent code, call `n8n.webhook(...)` or `n8n.workflow(...)` steps to delegate triggers/actions to n8n while keeping APL agents lightweight.
 - To drive agents behind HTTP endpoints:\
-  1. Copy `examples/slack_support/.env.example` to either `examples/slack_support/.env` or the repo root `.env`, then set `SLACK_SUPPORT_API_TOKEN=<random-token>` and fill Slack credentials.\
+  1. Copy `examples/slack_support/.env.example` to either `examples/slack_support/.env` or the repo root `.env`, then set `SLACK_SUPPORT_API_TOKEN=<random-token>`.\
   2. Install extras: `pip install -e .[dev] fastapi uvicorn[standard]`.\
   3. Run `uvicorn examples.slack_support.runner:app --host 0.0.0.0 --port 8000`.\
-  4. Configure the n8n HTTP Request node to call `http://localhost:8000/agents/slack-support` with header `Authorization: Bearer <same-token>` while its Slack node posts the formatted reply.
-- Verify Slack connectivity quickly with\
-  `python -m apl run examples/slack_support/test_post_message.apl` (reads credentials from `.env`).
+  4. Configure the n8n HTTP Request node to call `http://localhost:8000/agents/slack-support` with header `Authorization: Bearer <same-token>` and route downstream delivery through an MCP Slack server (consult the MCP registry: https://modelcontextprotocol.io/registry or https://github.com/modelcontextprotocol/registry).
+- Provision Slack access by deploying or registering an MCP Slack server from the registry and binding it in APL (`binds mcp.slack as slack`). The runtime no longer bundles Slack credentials; authentication and delivery live with the MCP integration.
 
 ## Contact / Contributing
 Follow standard PR process. Update PRD.md when changing language semantics.

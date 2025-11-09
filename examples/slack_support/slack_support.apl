@@ -1,4 +1,5 @@
 # Slack support agent that triages inbound tickets and posts updates.
+# Requires a running Slack MCP server (see https://modelcontextprotocol.io/registry).
 
 agent slack_support binds mcp.slack as slack, mcp.kb as knowledge:
   # n8n: trigger webhook path="/hooks/slack/support" method="POST"

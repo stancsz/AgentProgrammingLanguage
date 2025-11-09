@@ -1,3 +1,4 @@
+# Requires a running Slack MCP server (https://modelcontextprotocol.io/registry).
 program slack_support_test(version="0.1")
 
 agent slack_post_message binds mcp.slack as slack:

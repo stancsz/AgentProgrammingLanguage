@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from .ast import Program, Step
 from .env import load_env_defaults, resolve_env_value
-from .integrations.slack import post_message as slack_post_message
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .n8n import N8NClient
@@ -118,10 +117,10 @@ class Runtime:
             raise RuntimeError(f"Unsupported n8n sub-action '{sub_action}'.")
 
         if action.startswith("slack."):
-            kwargs = self._eval_kwargs(step.args or "")
-            if action == "slack.post":
-                return slack_post_message(kwargs)
-            raise RuntimeError(f"Unsupported Slack action '{action}'.")
+            raise RuntimeError(
+                "Slack actions are no longer bundled with the APL runtime. "
+                "Bind your agent to an MCP Slack server instead (see the MCP registry at https://modelcontextprotocol.io/registry or https://github.com/modelcontextprotocol/registry)."
+            )
 
         if action and "." in action:
             # Treat dotted calls (e.g., news.search) as JSON-friendly log output
