@@ -1,0 +1,191 @@
+{
+  "program": "customer_support_demo",
+  "meta": {
+    "version": "0.1",
+    "agents": {
+      "support_agent": {
+        "args": [],
+        "binds": {
+          "sd": "mcp.servicedesk",
+          "crm": "mcp.crm"
+        },
+        "capabilities": [
+          "network",
+          "storage",
+          "call_llm"
+        ]
+      }
+    }
+  },
+  "generator": "apl/0.1.0",
+  "schema_version": "1.0",
+  "nodes": [
+    {
+      "id": "ed57d7e5955ba68265428d7f8b0d4342fa00ac3d140c543e748da54d83f17942",
+      "task": "support_agent.handle_request",
+      "kind": "crm.get_account",
+      "input": "id=customer_id",
+      "assignment": "account",
+      "requires": [
+        "network"
+      ],
+      "source": "step account = crm.get_account(id=customer_id) requires capability.network"
+    },
+    {
+      "id": "de250cd39df2ac9a3395f22729f08ec0f947df9c2fba3dbb9152fb4ef6b53c3d",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "sd.create_ticket(",
+      "assignment": "ticket",
+      "requires": [],
+      "source": "step ticket = sd.create_ticket("
+    },
+    {
+      "id": "9c8a38e440b6ac18b5fd5588de1e5580ba5e103823acc69cf03f28c855aa727e",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "\"Support request from {{account.name}}\",",
+      "assignment": "title",
+      "requires": [],
+      "source": "title=\"Support request from {{account.name}}\","
+    },
+    {
+      "id": "9917f3251ca51b27cd2e3184684c594ec92d4d0a098b343549c7254c372224cc",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "message,",
+      "assignment": "body",
+      "requires": [],
+      "source": "body=message,"
+    },
+    {
+      "id": "c0805a563d414d96408df3759f15cd6157ee7fb1b4b45478c8b967dc07ba8195",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "customer_id",
+      "assignment": "customer_id",
+      "requires": [],
+      "source": "customer_id=customer_id"
+    },
+    {
+      "id": "49258e737fb1712a01c9295b587c609413e82858329bc895c3abefb8469bef4d",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": ")",
+      "assignment": null,
+      "requires": [
+        "network"
+      ],
+      "source": ") requires capability.network"
+    },
+    {
+      "id": "2f05e5d233f29ac0b9b6befb4fee1928449402873dcc6f0c359db6610cdfbd31",
+      "task": "support_agent.handle_request",
+      "kind": "store",
+      "input": "\"local://tickets/{{ticket.id}}.txt\", \"Ticket created: {{ticket.id}}\"",
+      "assignment": "store_result",
+      "requires": [
+        "storage"
+      ],
+      "source": "step store_result = store(\"local://tickets/{{ticket.id}}.txt\", \"Ticket created: {{ticket.id}}\") requires capability.storage"
+    },
+    {
+      "id": "d86f96f2045729ab47841dcd8e5e07cad17c59b2abd44251138cee6f6cd69cf6",
+      "task": "support_agent.handle_request",
+      "kind": "crm.assign_account_manager",
+      "input": "account_id=account.id",
+      "assignment": "am",
+      "requires": [
+        "network"
+      ],
+      "source": "step am = crm.assign_account_manager(account_id=account.id) requires capability.network"
+    },
+    {
+      "id": "0220531a3b456e0d4d84299eb3d09486140409cd800cae8ba134cc679b0f6cd1",
+      "task": "support_agent.handle_request",
+      "kind": "crm.schedule_followup",
+      "input": "account_id=account.id, days=3",
+      "assignment": "followup_date",
+      "requires": [
+        "network"
+      ],
+      "source": "step followup_date = crm.schedule_followup(account_id=account.id, days=3) requires capability.network"
+    },
+    {
+      "id": "edd40819da8741af36fc45bdfd6ff5415281714ef5f477e26de0b9f845dbfbb3",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "\"Draft a friendly reply to the customer summarizing the ticket {{ticket.id}} and scheduled follow-up on {{followup_date}}.\"",
+      "assignment": "prompt",
+      "requires": [],
+      "source": "step prompt = \"Draft a friendly reply to the customer summarizing the ticket {{ticket.id}} and scheduled follow-up on {{followup_date}}.\""
+    },
+    {
+      "id": "72a5adf5e4bbefabf4e3f921f57d36f23875098f4ba2a51ed865a551f4e66721",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "model=\"gpt-5-mini\", prompt=prompt",
+      "assignment": "reply",
+      "requires": [
+        "call_llm"
+      ],
+      "source": "step reply = call_llm(model=\"gpt-5-mini\", prompt=prompt) requires capability.call_llm"
+    },
+    {
+      "id": "b8efb8d278f23c0895aeb6a3beb266b0c65f8b13b0158cb348923a6a6613a3d6",
+      "task": "support_agent.handle_request",
+      "kind": "call_llm",
+      "input": "return { \"ticket_id\": ticket.id, \"reply\": reply, \"followup_date\": followup_date, \"assigned_manager\": am }",
+      "assignment": null,
+      "requires": [],
+      "source": "return { \"ticket_id\": ticket.id, \"reply\": reply, \"followup_date\": followup_date, \"assigned_manager\": am }"
+    }
+  ],
+  "edges": [
+    [
+      "ed57d7e5955ba68265428d7f8b0d4342fa00ac3d140c543e748da54d83f17942",
+      "de250cd39df2ac9a3395f22729f08ec0f947df9c2fba3dbb9152fb4ef6b53c3d"
+    ],
+    [
+      "de250cd39df2ac9a3395f22729f08ec0f947df9c2fba3dbb9152fb4ef6b53c3d",
+      "9c8a38e440b6ac18b5fd5588de1e5580ba5e103823acc69cf03f28c855aa727e"
+    ],
+    [
+      "9c8a38e440b6ac18b5fd5588de1e5580ba5e103823acc69cf03f28c855aa727e",
+      "9917f3251ca51b27cd2e3184684c594ec92d4d0a098b343549c7254c372224cc"
+    ],
+    [
+      "9917f3251ca51b27cd2e3184684c594ec92d4d0a098b343549c7254c372224cc",
+      "c0805a563d414d96408df3759f15cd6157ee7fb1b4b45478c8b967dc07ba8195"
+    ],
+    [
+      "c0805a563d414d96408df3759f15cd6157ee7fb1b4b45478c8b967dc07ba8195",
+      "49258e737fb1712a01c9295b587c609413e82858329bc895c3abefb8469bef4d"
+    ],
+    [
+      "49258e737fb1712a01c9295b587c609413e82858329bc895c3abefb8469bef4d",
+      "2f05e5d233f29ac0b9b6befb4fee1928449402873dcc6f0c359db6610cdfbd31"
+    ],
+    [
+      "2f05e5d233f29ac0b9b6befb4fee1928449402873dcc6f0c359db6610cdfbd31",
+      "d86f96f2045729ab47841dcd8e5e07cad17c59b2abd44251138cee6f6cd69cf6"
+    ],
+    [
+      "d86f96f2045729ab47841dcd8e5e07cad17c59b2abd44251138cee6f6cd69cf6",
+      "0220531a3b456e0d4d84299eb3d09486140409cd800cae8ba134cc679b0f6cd1"
+    ],
+    [
+      "0220531a3b456e0d4d84299eb3d09486140409cd800cae8ba134cc679b0f6cd1",
+      "edd40819da8741af36fc45bdfd6ff5415281714ef5f477e26de0b9f845dbfbb3"
+    ],
+    [
+      "edd40819da8741af36fc45bdfd6ff5415281714ef5f477e26de0b9f845dbfbb3",
+      "72a5adf5e4bbefabf4e3f921f57d36f23875098f4ba2a51ed865a551f4e66721"
+    ],
+    [
+      "72a5adf5e4bbefabf4e3f921f57d36f23875098f4ba2a51ed865a551f4e66721",
+      "b8efb8d278f23c0895aeb6a3beb266b0c65f8b13b0158cb348923a6a6613a3d6"
+    ]
+  ],
+  "ir_hash": "bd80f1bae945b968eb7fa44c668610748eef1cadcab39ddd9ec9f136aaa758fe"
+}

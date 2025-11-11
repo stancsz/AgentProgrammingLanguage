@@ -1,0 +1,6 @@
+{
+  "name": "customer_support",
+  "warning": "No tasks annotated with `# n8n: trigger ...` were found.",
+  "nodes": [],
+  "connections": {}
+}

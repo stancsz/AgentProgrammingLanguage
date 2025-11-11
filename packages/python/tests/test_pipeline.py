@@ -16,6 +16,8 @@ from apl.parser import parse_apl  # noqa: E402  (import after sys.path tweak)
 from apl.runtime import Runtime  # noqa: E402
 from apl.compiler import write_compiled_artifacts  # noqa: E402
 from apl.ir import to_langgraph_ir  # noqa: E402
+from apl.authoring import LiteLLMAuthor, AuthoringConfig  # noqa: E402
+from apl.pipeline import run_pipeline  # noqa: E402
 
 
 EXAMPLE = ROOT / "examples" / "hello.apl"
@@ -63,3 +65,26 @@ def test_compile_to_python_module(tmp_path: Path):
     output = module.run()
     assert isinstance(output, dict)
     assert "hello_world.greet" in output
+
+
+def test_litellm_author_mock_seed(tmp_path: Path):
+    config = AuthoringConfig(mock=True, seed_program=EXAMPLE)
+    author = LiteLLMAuthor(config)
+    program_text = author.generate_program("Please create a hello world agent.")
+    assert "agent hello_world" in program_text
+
+
+def test_run_pipeline_mock(tmp_path: Path):
+    artifacts = run_pipeline(
+        prompt="Draft a hello program",
+        out_dir=tmp_path,
+        name="sample",
+        author_config=AuthoringConfig(mock=True, seed_program=EXAMPLE),
+    )
+
+    assert artifacts.apl_path.exists()
+    assert artifacts.python_path.exists()
+    assert artifacts.ir_path.exists()
+    assert artifacts.n8n_path.exists()
+    assert artifacts.run_path.exists()
+    assert "hello_world.greet" in artifacts.outputs

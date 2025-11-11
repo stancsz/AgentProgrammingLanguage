@@ -1,0 +1,4 @@
+Customer: "My billing page shows an error and my invoice is missing."
+Goal: create a service-desk ticket, attach account data, schedule a follow-up with an account manager, and reply to the customer.
+Requirements: use MCP service-desk and CRM tools; declare network and storage capabilities.
+Constraints: expose a primary task for handling the request and keep the program compatible with the reference runtime.

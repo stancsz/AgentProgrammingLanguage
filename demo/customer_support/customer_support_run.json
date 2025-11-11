@@ -1,0 +1,23 @@
+{
+  "support_agent.handle_request": {
+    "customer_id": "customer_id=customer_id",
+    "message": null,
+    "account": "{\"tool\": \"crm.get_account\", \"args\": \"id=customer_id\"}",
+    "ticket": "step ticket = sd.create_ticket(",
+    "title": "title=\"Support request from {{account.name}}\",",
+    "body": "body=message,",
+    "store_result": {
+      "status": "ok",
+      "key": "item",
+      "meta": {
+        "mock": true,
+        "size": 0
+      }
+    },
+    "am": "{\"tool\": \"crm.assign_account_manager\", \"args\": \"account_id=account.id\"}",
+    "followup_date": "{\"tool\": \"crm.schedule_followup\", \"args\": \"account_id=account.id, days=3\"}",
+    "prompt": "step prompt = \"Draft a friendly reply to the customer summarizing the ticket {{ticket.id}} and scheduled follow-up on {{followup_date}}.\"",
+    "reply": "[mocked:mock] model=\"gpt-5-mini\", prompt=prompt",
+    "handle_request": "return { \"ticket_id\": ticket.id, \"reply\": reply, \"followup_date\": followup_date, \"assigned_manager\": am }"
+  }
+}

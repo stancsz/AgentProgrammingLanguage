@@ -62,3 +62,34 @@ def test_cmd_translate_strict_and_warns(monkeypatch, capsys):
     cli._cmd_translate(Path("dummy.apl"), strict=False)
     captured = capsys.readouterr()
     assert "IR validation warning" in captured.out or "broken IR" in captured.out
+
+
+def test_cmd_author_mock(tmp_path: Path):
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text("Create a hello agent", encoding="utf-8")
+    out_path = tmp_path / "program.apl"
+
+    cli._cmd_author(prompt_path, out_path, model=None, mock=True)
+
+    assert out_path.exists()
+    content = out_path.read_text(encoding="utf-8")
+    assert "agent" in content
+
+
+def test_cmd_demo_pipeline(tmp_path: Path):
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text("Customer support workflow", encoding="utf-8")
+    out_dir = tmp_path / "demo"
+
+    cli._cmd_demo(prompt_path, out_dir, "demo", model=None, mock_llm=True, allow_storage=True)
+
+    expected_files = [
+        out_dir / "demo_prompt.txt",
+        out_dir / "demo.apl",
+        out_dir / "demo.py",
+        out_dir / "demo.json",
+        out_dir / "demo_n8n.json",
+        out_dir / "demo_run.json",
+    ]
+    for path in expected_files:
+        assert path.exists(), f"Expected artifact not found: {path}"

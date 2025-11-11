@@ -10,10 +10,11 @@ from typing import Sequence
 from .env import load_env_defaults
 from .parser import parse_apl
 from .runtime import Runtime
-from .ir import to_langgraph_ir
 from .compiler import write_compiled_artifacts
 from .n8n import to_n8n_workflow
 from .ir import _validate_ir, to_langgraph_ir
+from .authoring import LiteLLMAuthor, AuthoringConfig
+from .pipeline import run_pipeline
 
 
 def _load_program(path: Path):
@@ -110,6 +111,45 @@ def _cmd_export_n8n(path: Path, runtime_url: str | None, out: Path | None) -> No
     else:
         print(payload)
 
+
+def _cmd_author(prompt_path: Path, out_path: Path, model: str | None, mock: bool) -> None:
+    config = AuthoringConfig(model=model, mock=mock)
+    author = LiteLLMAuthor(config)
+    prompt = prompt_path.read_text(encoding="utf-8")
+    apl_source = author.generate_program(prompt)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(apl_source, encoding="utf-8")
+    print(f"Wrote APL program to {out_path}")
+
+
+def _cmd_demo(
+    prompt_path: Path,
+    out_dir: Path,
+    name: str,
+    model: str | None,
+    mock_llm: bool,
+    allow_storage: bool,
+) -> None:
+    config = AuthoringConfig(model=model, mock=mock_llm)
+    prompt = prompt_path.read_text(encoding="utf-8")
+    artifacts = run_pipeline(
+        prompt,
+        out_dir,
+        name=name,
+        allow_storage=allow_storage,
+        author_config=config,
+    )
+    summary = {
+        "prompt": str(artifacts.prompt_path),
+        "apl": str(artifacts.apl_path),
+        "python": str(artifacts.python_path),
+        "ir": str(artifacts.ir_path),
+        "n8n": str(artifacts.n8n_path),
+        "run": str(artifacts.run_path),
+        "outputs": artifacts.outputs,
+    }
+    print(json.dumps(summary, indent=2))
+
 def _cmd_repl(path: Path | None) -> None:
     """
     Minimal REPL for iterating on APL programs.
@@ -196,6 +236,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_n8n.add_argument("--runtime-url", type=str, help="Override the runtime URL used inside the generated workflow")
     p_n8n.add_argument("--out", type=Path, help="Path to write the workflow JSON (stdout if omitted)")
 
+    p_author = sub.add_parser("author", help="Generate an APL program using LiteLLM")
+    p_author.add_argument("prompt", type=Path, help="Path to the natural language prompt file")
+    p_author.add_argument("--out", type=Path, required=True, help="Output path for the generated APL file")
+    p_author.add_argument("--model", type=str, help="Override the LiteLLM model to use")
+    p_author.add_argument("--mock", action="store_true", help="Use deterministic mock authoring output")
+
+    p_demo = sub.add_parser("demo", help="Run the 4-step author -> compile -> adapt -> validate pipeline")
+    p_demo.add_argument("prompt", type=Path, help="Path to the natural language prompt file")
+    p_demo.add_argument("--out-dir", type=Path, default=Path("demo"), help="Directory to write pipeline artifacts")
+    p_demo.add_argument("--name", type=str, default="demo_program", help="Base name for generated artifacts")
+    p_demo.add_argument("--model", type=str, help="Override the LiteLLM model to use")
+    p_demo.add_argument("--mock-llm", action="store_true", help="Use deterministic mock authoring output")
+    p_demo.add_argument("--allow-storage", action="store_true", help="Enable storage capability during runtime execution")
+
     return parser
 
 
@@ -216,6 +270,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         _cmd_repl(getattr(args, "file", None))
     elif args.command == "export-n8n":
         _cmd_export_n8n(args.file, runtime_url=getattr(args, "runtime_url", None), out=getattr(args, "out", None))
+    elif args.command == "author":
+        _cmd_author(args.prompt, args.out, getattr(args, "model", None), mock=getattr(args, "mock", False))
+    elif args.command == "demo":
+        _cmd_demo(
+            args.prompt,
+            getattr(args, "out_dir", Path("demo")),
+            getattr(args, "name", "demo_program"),
+            getattr(args, "model", None),
+            getattr(args, "mock_llm", False),
+            getattr(args, "allow_storage", False),
+        )
     else:
         parser.print_help()
 
